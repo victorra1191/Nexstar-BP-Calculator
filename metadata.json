@@ -1,0 +1,5 @@
+{
+  "name": "Nexstar Business Planner",
+  "description": "An application to generate business plans and purchase orders from company data, with AI-powered summaries and PDF export functionality.",
+  "requestFramePermissions": []
+}
