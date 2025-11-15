@@ -11,8 +11,8 @@ interface PurchaseOrderProps {
 const PurchaseOrder = forwardRef<HTMLDivElement, PurchaseOrderProps>(({ data, containerCount, logo, poNumber }, ref) => {
 
     const totals = useMemo(() => {
-        const totalQty = data.qtyFCL * containerCount;
-        const totalFobCost = data.fobCostUnit * totalQty;
+        const totalQty = data.products.reduce((acc, p) => acc + p.qtyInContainer, 0) * containerCount;
+        const totalFobCost = data.products.reduce((acc, p) => acc + (p.fobCostUnit * p.qtyInContainer), 0) * containerCount;
         const totalFreight = data.freightTotal * containerCount;
         const totalDestinationCost = data.destinationCostsTotal * containerCount;
         const grandTotal = totalFobCost + totalFreight + totalDestinationCost;
@@ -20,97 +20,110 @@ const PurchaseOrder = forwardRef<HTMLDivElement, PurchaseOrderProps>(({ data, co
     }, [data, containerCount]);
     
     return (
-        <div ref={ref} className="bg-surface p-8 sm:p-10 rounded-xl shadow-lg font-mono border animate-fade-in">
-            <header className="flex justify-between items-start pb-4 mb-6 border-b-2 border-gray-200">
-                <div className="flex items-center space-x-4">
-                    {logo ? <img src={logo} alt="Company Logo" className="h-16 object-contain" /> : <div className="h-16 w-32 bg-gray-200 rounded"></div>}
+        <div ref={ref} className="bg-surface text-text-primary p-10 sm:p-12 rounded-lg shadow-2xl font-sans animate-slide-in-up" style={{ fontFamily: 'Arial, sans-serif' }}>
+            <header className="flex justify-between items-start pb-6 mb-8 border-b-2 border-gray-200">
+                <div className="flex items-center space-x-6">
+                    {logo ? <img src={logo} alt="Company Logo" className="h-16 object-contain" /> : <div className="h-16 w-32 bg-gray-100 rounded"></div>}
                     <div>
-                        <h1 className="text-3xl font-bold text-primary">PURCHASE ORDER</h1>
-                        <p className="text-gray-500">{poNumber}</p>
+                        <p className="text-sm text-text-secondary">Official Document</p>
                     </div>
                 </div>
                 <div className="text-right">
-                    <p className="font-bold text-sm text-text-secondary">Date:</p>
-                    <p>{new Date().toLocaleDateString('en-US')}</p>
+                    <h1 className="text-4xl font-bold text-primary">PURCHASE ORDER</h1>
+                    <p className="text-text-secondary font-mono mt-1">{poNumber}</p>
+                    <p className="text-text-secondary font-mono text-sm">Date: {new Date().toLocaleDateString('en-US')}</p>
                 </div>
             </header>
 
-            <section className="grid grid-cols-2 gap-8 mb-8 text-sm">
+            <section className="grid grid-cols-2 gap-8 mb-10 text-sm">
                  <div>
-                    <h2 className="font-bold border-b mb-2 pb-1 text-text-secondary">SHIPPING FROM</h2>
-                    <p className="font-semibold text-secondary">{data.originalSupplier}</p>
-                    <p>Eduardo García</p>
-                    <p>e.garcia@thenexstar.com</p>
-                </div>
-                 <div className="text-right">
-                    <h2 className="font-bold border-b mb-2 pb-1 text-text-secondary">RECEIVING AT</h2>
-                    <p className="font-semibold text-secondary">{data.destination}</p>
+                    <h2 className="font-semibold text-text-secondary tracking-wider uppercase mb-2">SUPPLIER</h2>
+                    <p className="font-bold text-text-primary">{data.products[0]?.originalSupplier || 'N/A'}</p>
                     <p>Wang Jincheng</p>
                     <p>Wangjcheng@gmail.com</p>
+                </div>
+                 <div className="text-right">
+                    <h2 className="font-semibold text-text-secondary tracking-wider uppercase mb-2">SHIP TO</h2>
+                    <p className="font-bold text-text-primary">{data.destination}</p>
+                    <p>Eduardo García</p>
+                    <p>e.garcia@thenexstar.com</p>
                 </div>
             </section>
             
             <section>
-                <div className="overflow-x-auto">
+                <div className="overflow-x-auto border rounded-md">
                     <table className="w-full text-left table-auto text-sm">
-                        <thead className="bg-gray-100">
+                        <thead className="bg-background border-b border-gray-200">
                             <tr>
-                                <th className="p-3 font-semibold">MODEL</th>
-                                <th className="p-3 font-semibold">DESCRIPTION</th>
-                                <th className="p-3 text-right font-semibold">QTY/CONT.</th>
-                                <th className="p-3 text-right font-semibold">CONTAINERS</th>
-                                <th className="p-3 text-right font-semibold">TOTAL QTY</th>
-                                <th className="p-3 text-right font-semibold">UNIT PRICE</th>
-                                <th className="p-3 text-right font-semibold">TOTAL</th>
+                                <th className="p-3 font-semibold text-text-secondary uppercase w-2/5">Product</th>
+                                <th className="p-3 text-right font-semibold text-text-secondary uppercase">Qty/Cont.</th>
+                                <th className="p-3 text-right font-semibold text-text-secondary uppercase">Containers</th>
+                                <th className="p-3 text-right font-semibold text-text-secondary uppercase">Total Qty</th>
+                                <th className="p-3 text-right font-semibold text-text-secondary uppercase">Unit Price</th>
+                                <th className="p-3 text-right font-semibold text-text-secondary uppercase">Total</th>
                             </tr>
                         </thead>
-                        <tbody>
-                            <tr className="border-b">
-                                <td className="p-3 font-bold">{data.nexstarModel}</td>
-                                <td className="p-3">{data.supplierReference}</td>
-                                <td className="p-3 text-right">{data.qtyFCL.toLocaleString()}</td>
-                                <td className="p-3 text-right">{containerCount}</td>
-                                <td className="p-3 text-right">{totals.totalQty.toLocaleString()}</td>
-                                <td className="p-3 text-right">${data.fobCostUnit.toFixed(2)}</td>
-                                <td className="p-3 text-right font-semibold">${totals.totalFobCost.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                            </tr>
+                        <tbody className="font-mono">
+                            {data.products.map(product => (
+                                <tr key={product.id} className="border-b border-gray-100">
+                                    <td className="p-3">
+                                        <div className="flex items-center space-x-4">
+                                            {product.productImage ? (
+                                                <img src={product.productImage} alt={product.nexstarModel} className="h-14 w-14 object-cover rounded-md border p-1" />
+                                            ) : (
+                                                <div className="h-14 w-14 bg-gray-100 rounded-md flex items-center justify-center text-xs text-gray-400">No Image</div>
+                                            )}
+                                            <div>
+                                                <p className="font-bold text-primary font-sans">{product.nexstarModel}</p>
+                                                <p className="text-text-secondary text-xs">{product.supplierReference}</p>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td className="p-3 text-right text-text-secondary">{product.qtyInContainer.toLocaleString()}</td>
+                                    <td className="p-3 text-right text-text-secondary">{containerCount}</td>
+                                    <td className="p-3 text-right text-text-secondary">{(product.qtyInContainer * containerCount).toLocaleString()}</td>
+                                    <td className="p-3 text-right text-text-secondary">${product.fobCostUnit.toFixed(2)}</td>
+                                    <td className="p-3 text-right font-semibold text-text-primary">${(product.fobCostUnit * product.qtyInContainer * containerCount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                                </tr>
+                            ))}
                         </tbody>
                     </table>
                 </div>
             </section>
 
-            <section className="grid grid-cols-2 gap-8 mt-8">
-                <div>
-                     {data.productImage ? (
-                        <img src={data.productImage} alt="Product" className="w-full h-auto rounded-lg object-cover shadow-md border" />
-                    ) : (
-                        <div className="w-full h-48 bg-gray-200 rounded-lg flex items-center justify-center">
-                            <p className="text-gray-500">Product Image</p>
-                        </div>
-                    )}
-                </div>
-                <div className="flex flex-col justify-end text-sm">
-                    <div className="space-y-2">
-                        <div className="flex justify-between"><span>Subtotal (FOB)</span> <span>${totals.totalFobCost.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
-                        <div className="flex justify-between"><span>Freight</span> <span>${totals.totalFreight.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
-                        <div className="flex justify-between"><span>Destination Costs</span> <span>${totals.totalDestinationCost.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
-                        <div className="flex justify-between border-t-2 border-black mt-2 pt-2 font-bold text-lg">
-                            <span>GRAND TOTAL</span>
-                            <span>${totals.grandTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                        </div>
+            <section className="flex justify-end mt-8">
+                <div className="w-full max-w-sm text-sm space-y-3 font-mono">
+                    <div className="flex justify-between text-text-secondary">
+                        <span>Subtotal (FOB)</span> 
+                        <span>${totals.totalFobCost.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    </div>
+                    <div className="flex justify-between text-text-secondary">
+                        <span>Freight</span>
+                        <span>${totals.totalFreight.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    </div>
+                    <div className="flex justify-between text-text-secondary">
+                        <span>Destination Costs</span>
+                        <span>${totals.totalDestinationCost.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    </div>
+                    <div className="flex justify-between border-t-2 border-primary mt-4 pt-3 font-bold text-lg text-primary">
+                        <span>GRAND TOTAL (USD)</span>
+                        <span>${totals.grandTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                     </div>
                 </div>
             </section>
 
-            <footer className="mt-16 grid grid-cols-2 gap-8">
-                <div>
-                    <h3 className="font-bold">Notes:</h3>
-                    <p className="text-xs text-text-secondary">All prices are in USD. Payment terms: 30 days net.</p>
+            <section className="mt-20 grid grid-cols-2 gap-20 text-sm">
+                <div className="text-center">
+                    <div className="border-t border-gray-400 pt-2">Authorized Signature</div>
                 </div>
-                 <div className="text-center">
-                    <div className="border-b-2 border-gray-400 w-3/4 mx-auto pb-8"></div>
-                    <p className="mt-2 font-bold text-sm">Approved By: Wang J Cheng</p>
+                <div className="text-center">
+                     <div className="border-t border-gray-400 pt-2">Name / Title</div>
                 </div>
+            </section>
+
+             <footer className="mt-16 text-xs text-text-secondary text-center border-t pt-4">
+                <p><span className="font-semibold">Notes:</span> All prices are in USD. Terms: 30% downpayment and 70% against BL.</p>
+                <p>If you have any questions about this purchase order, please contact Eduardo García at e.garcia@thenexstar.com</p>
             </footer>
         </div>
     );

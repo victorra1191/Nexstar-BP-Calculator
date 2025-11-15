@@ -2,38 +2,31 @@
 import { GoogleGenAI } from "@google/genai";
 import type { BusinessPlanData } from '../types';
 
-// IMPORTANT: This check is to prevent crashing in environments where process.env is not defined.
-const apiKey = typeof process !== 'undefined' && process.env && process.env.API_KEY
-  ? process.env.API_KEY
-  : undefined;
-
-if (!apiKey) {
-  console.warn("API_KEY environment variable not found. AI features will be disabled.");
-}
-
-const ai = new GoogleGenAI({ apiKey: apiKey || '' });
+// Per @google/genai coding guidelines, the API key must be obtained exclusively from process.env.API_KEY.
+// It is assumed to be pre-configured and accessible.
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
 
 export const generateBusinessPlanSummary = async (data: BusinessPlanData): Promise<string> => {
-    if (!apiKey) {
-        return Promise.resolve("AI functionality is disabled because the API key is missing.");
-    }
+    const productList = data.products.map(p => `- ${p.nexstarModel} (${p.qtyInContainer} units)`).join('\n');
 
     const prompt = `
-        Generate a concise, professional executive summary for a business plan based on the following data for product model ${data.nexstarModel}.
-        Focus on the key financial metrics like investment, projected sales, profit, and margins.
+        Generate a concise, professional executive summary for a business plan for a consolidated container based on the following data. The plan is named "${data.planName}".
+        Assume the role of a financial analyst presenting to potential investors. Go beyond the surface-level data to provide a brief analysis of what these numbers signify (e.g., strong profitability from a diversified product mix, efficient cost management, high-return potential).
         The summary should be optimistic but grounded in the provided data. It should be one paragraph.
+        The tone should be confident, analytical, and persuasive.
 
-        Key Data:
-        - Product Model: ${data.nexstarModel}
+        Key Aggregated Data:
         - Total Investment (for one container): $${data.totalInvestment.toFixed(2)}
         - Projected Total Sales (for one container): $${data.totalSales.toFixed(2)}
         - Projected Net Profit (for one container): $${data.netProfit.toFixed(2)}
         - Net Sales Margin: ${data.netSalesMarginPercent.toFixed(2)}%
         - Gross Markup: ${data.grossMarkupPercent.toFixed(2)}%
-        - Supplier: ${data.originalSupplier}
         - Destination Market: ${data.destination}
 
-        Do not just list the numbers. Weave them into a compelling narrative about the business opportunity.
+        Products in Container:
+        ${productList}
+
+        Weave the key data into a compelling narrative about this consolidated shipment as a business opportunity. Do not just list the numbers.
     `;
 
     try {

@@ -1,21 +1,29 @@
-export interface BusinessPlanData {
+export interface Product {
   id: string;
   nexstarModel: string;
   supplierReference: string;
   originalSupplier: string;
+  qtyInContainer: number;
+  fobCostUnit: number;
+  estimatedSalesPrice: number;
+  productImage: string; // Base64 string
+}
+
+export interface BusinessPlanData {
+  id: string;
+  planName: string;
   destination: string;
   containerType: string;
-  qtyFCL: number;
-  fobCostUnit: number;
   freightTotal: number;
   destinationCostsTotal: number;
-  estimatedSalesPrice: number;
-  productImage: string; // Base64 string for the image
+  products: Product[];
   aiSummary: string;
+  createdAt: string;
+  updatedAt: string;
   
   // These will be calculated and stored
-  totalUnitCost: number;
-  unitSalesMargin: number;
+  totalUnitCost: number; // This becomes an aggregate/average concept
+  unitSalesMargin: number; // Aggregate/average
   grossSalesMarginPercent: number;
   grossMarkupPercent: number;
   netMarkupPercent: number;
@@ -29,3 +37,14 @@ export interface BusinessPlanData {
 
 export type ViewType = 'plan' | 'po';
 export type AppView = 'dashboard' | 'new_plan' | 'view_plan';
+
+export interface ExportHistoryItem {
+  id: string;
+  type: 'plan' | 'po';
+  planModel: string; // Will now be planName
+  poNumber?: string;
+  containerCount?: number;
+  exportedAt: string;
+  status: 'pending' | 'approved' | 'disapproved';
+  pdfDataUrl?: string; // Base64 data URL of the generated PDF - Optional to prevent localStorage quota issues
+}
