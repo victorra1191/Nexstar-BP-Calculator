@@ -25,17 +25,17 @@ const PurchaseOrder = forwardRef<HTMLDivElement, PurchaseOrderProps>(({ data, co
                 <div className="flex items-center space-x-6">
                     {logo ? <img src={logo} alt="Company Logo" className="h-16 object-contain" /> : <div className="h-16 w-32 bg-gray-100 rounded"></div>}
                     <div>
-                        <p className="text-sm text-text-secondary">Official Document</p>
+                        <p className="text-base text-text-secondary">Official Document</p>
                     </div>
                 </div>
                 <div className="text-right">
                     <h1 className="text-4xl font-bold text-primary">PURCHASE ORDER</h1>
                     <p className="text-text-secondary font-mono mt-1">{poNumber}</p>
-                    <p className="text-text-secondary font-mono text-sm">Date: {new Date().toLocaleDateString('en-US')}</p>
+                    <p className="text-text-secondary font-mono text-base">Date: {new Date().toLocaleDateString('en-US')}</p>
                 </div>
             </header>
 
-            <section className="grid grid-cols-2 gap-8 mb-10 text-sm">
+            <section className="grid grid-cols-2 gap-8 mb-10 text-base">
                  <div>
                     <h2 className="font-semibold text-text-secondary tracking-wider uppercase mb-2">SUPPLIER</h2>
                     <p className="font-bold text-text-primary">{data.products[0]?.originalSupplier || 'N/A'}</p>
@@ -52,7 +52,7 @@ const PurchaseOrder = forwardRef<HTMLDivElement, PurchaseOrderProps>(({ data, co
             
             <section>
                 <div className="overflow-x-auto border rounded-md">
-                    <table className="w-full text-left table-auto text-sm">
+                    <table className="w-full text-left table-auto text-base">
                         <thead className="bg-background border-b border-gray-200">
                             <tr>
                                 <th className="p-3 font-semibold text-text-secondary uppercase w-2/5">Product</th>
@@ -75,7 +75,7 @@ const PurchaseOrder = forwardRef<HTMLDivElement, PurchaseOrderProps>(({ data, co
                                             )}
                                             <div>
                                                 <p className="font-bold text-primary font-sans">{product.nexstarModel}</p>
-                                                <p className="text-text-secondary text-xs">{product.supplierReference}</p>
+                                                <p className="text-text-secondary text-sm">{product.supplierReference}</p>
                                             </div>
                                         </div>
                                     </td>
@@ -92,7 +92,7 @@ const PurchaseOrder = forwardRef<HTMLDivElement, PurchaseOrderProps>(({ data, co
             </section>
 
             <section className="flex justify-end mt-8">
-                <div className="w-full max-w-sm text-sm space-y-3 font-mono">
+                <div className="w-full max-w-sm text-base space-y-3 font-mono">
                     <div className="flex justify-between text-text-secondary">
                         <span>Subtotal (FOB)</span> 
                         <span>${totals.totalFobCost.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
@@ -105,14 +105,14 @@ const PurchaseOrder = forwardRef<HTMLDivElement, PurchaseOrderProps>(({ data, co
                         <span>Destination Costs</span>
                         <span>${totals.totalDestinationCost.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                     </div>
-                    <div className="flex justify-between border-t-2 border-primary mt-4 pt-3 font-bold text-lg text-primary">
+                    <div className="flex justify-between border-t-2 border-primary mt-4 pt-3 font-bold text-xl text-primary">
                         <span>GRAND TOTAL (USD)</span>
                         <span>${totals.grandTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                     </div>
                 </div>
             </section>
 
-            <section className="mt-20 grid grid-cols-2 gap-20 text-sm">
+            <section className="mt-20 grid grid-cols-2 gap-20 text-base">
                 <div className="text-center">
                     <div className="border-t border-gray-400 pt-2">Authorized Signature</div>
                 </div>
@@ -121,7 +121,7 @@ const PurchaseOrder = forwardRef<HTMLDivElement, PurchaseOrderProps>(({ data, co
                 </div>
             </section>
 
-             <footer className="mt-16 text-xs text-text-secondary text-center border-t pt-4">
+             <footer className="mt-16 text-sm text-text-secondary text-center border-t pt-4">
                 <p><span className="font-semibold">Notes:</span> All prices are in USD. Terms: 30% downpayment and 70% against BL.</p>
                 <p>If you have any questions about this purchase order, please contact Eduardo García at e.garcia@thenexstar.com</p>
             </footer>

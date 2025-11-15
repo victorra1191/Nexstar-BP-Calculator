@@ -1,0 +1,20 @@
+{
+  "short_name": "Nexstar Planner",
+  "name": "Nexstar Business Planner",
+  "icons": [
+    {
+      "src": "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTkyIiBoZWlnaHQ9IjE5MiIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPjxwYXRoIGQ9Ik0xMiAyTDE1LjA5IDguMjZMMjIgOS4yN0wxNyAxNC4xNEwxOC4xOCAyMS4wMkwxMiAxNy43N0w1LjgyIDIxLjAyTDcgMTQuMTRMMiA5LjI3TDguOTEgOC4yNkwxMiAyWiIgZmlsbD0iIzY0RkZEQSIvPjxwYXRoIGQ9Ik0xMiA2TDEzLjgyIDEwLjE0TDE4IDEwLjc3TDE0LjgyIDEzLjg2TDE1LjY0IDE4TDEyIDE1Ljg2TDguMzYgMThMOS4xOCAxMy44Nkw2IDEwLjc3TDEwLjE4IDEwLjE0TDEyIDZaIiBmaWxsPSIjRkZGRkZGIi8+PC9zdmc+",
+      "type": "image/svg+xml",
+      "sizes": "192x192"
+    },
+    {
+      "src": "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNTEyIiBoZWlnaHQ9IjUxMiIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPjxwYXRoIGQ9Ik0xMiAyTDE1LjA5IDguMjZMMjIgOS4yN0wxNyAxNC4xNEwxOC4xOCAyMS4wMkwxMiAxNy43N0w1LjgyIDIxLjAyTDcgMTQuMTRMMiA5LjI3TDguOTEgOC4yNkwxMiAyWiIgZmlsbD0iIzY0RkZEQSIvPjxwYXRoIGQ9Ik0xMiA2TDEzLjgyIDEwLjE0TDE4IDEwLjc3TDE0LjgyIDEzLjg2TDE1LjY0IDE4TDEyIDE1Ljg2TDguMzYgMThMOS4xOCAxMy44Nkw2IDEwLjc3TDEwLjE4IDEwLjE0TDEyIDZaIiBmaWxsPSIjRkZGRkZGIi8+PC9zdmc+",
+      "type": "image/svg+xml",
+      "sizes": "512x512"
+    }
+  ],
+  "start_url": ".",
+  "display": "standalone",
+  "theme_color": "#003366",
+  "background_color": "#F8F9FA"
+}

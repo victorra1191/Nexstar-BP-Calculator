@@ -18,27 +18,38 @@ const fileToBase64 = (file: File): Promise<string> =>
 interface PDFExportButtonProps {
     onClick: () => Promise<void>;
     isExporting: boolean;
+    librariesLoaded: boolean;
 }
 
-const PDFExportButton: React.FC<PDFExportButtonProps> = ({ onClick, isExporting }) => {
+const PDFExportButton: React.FC<PDFExportButtonProps> = ({ onClick, isExporting, librariesLoaded }) => {
+    const getButtonContent = () => {
+        if (!librariesLoaded) {
+            return 'Loading Libraries...';
+        }
+        if (isExporting) {
+            return 'Exporting...';
+        }
+        return (
+            <>
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                Download PDF
+            </>
+        );
+    };
+    
     return (
         <button
-            onClick={onClick} disabled={isExporting}
-            className="bg-primary text-white font-bold py-2 px-5 rounded-lg hover:bg-primary-hover transition-all duration-300 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30 transform hover:-translate-y-0.5"
+            onClick={onClick} disabled={isExporting || !librariesLoaded}
+            className="bg-primary text-white font-bold py-2 px-5 rounded-lg hover:bg-primary-hover transition-all duration-300 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30 transform hover:-translate-y-0.5 min-w-[160px]"
         >
-             {isExporting ? 'Exporting...' : (
-                <>
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-                Export PDF
-                </>
-             )}
+             {getButtonContent()}
         </button>
     );
 };
 
-
 const App: React.FC = () => {
     const [plans, setPlans] = useState<BusinessPlanData[]>([]);
+    const [archivedPlans, setArchivedPlans] = useState<BusinessPlanData[]>([]);
     const [appView, setAppView] = useState<AppView>('dashboard');
     const [selectedPlan, setSelectedPlan] = useState<BusinessPlanData | null>(null);
     const [activeReportView, setActiveReportView] = useState<ViewType>('plan');
@@ -51,14 +62,43 @@ const App: React.FC = () => {
     const [isExporting, setIsExporting] = useState(false);
     const [historyModalOpen, setHistoryModalOpen] = useState(false);
     const [historyPdfUrl, setHistoryPdfUrl] = useState<string | null>(null);
+    const [pdfLibrariesLoaded, setPdfLibrariesLoaded] = useState(false);
     
     const businessPlanRef = useRef<HTMLDivElement>(null);
     const purchaseOrderRef = useRef<HTMLDivElement>(null);
-    
+
     useEffect(() => {
+        // Load PDF libraries dynamically
+        const loadScript = (src: string): Promise<void> => {
+            return new Promise((resolve, reject) => {
+                if (document.querySelector(`script[src="${src}"]`)) {
+                    return resolve();
+                }
+                const script = document.createElement('script');
+                script.src = src;
+                script.onload = () => resolve();
+                script.onerror = () => reject(new Error(`Failed to load script ${src}`));
+                document.head.appendChild(script);
+            });
+        };
+
+        Promise.all([
+            loadScript("https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"),
+            loadScript("https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js")
+        ]).then(() => {
+            setPdfLibrariesLoaded(true);
+        }).catch(error => {
+            console.error("PDF libraries failed to load:", error);
+            alert("Could not load PDF generation libraries. Exporting will be disabled. Please check your network connection or ad-blocker settings.");
+        });
+
+        // Load data from localStorage on initial mount
         try {
             const savedPlans = localStorage.getItem('businessPlans');
             if (savedPlans) setPlans(JSON.parse(savedPlans));
+
+            const savedArchivedPlans = localStorage.getItem('archivedBusinessPlans');
+            if (savedArchivedPlans) setArchivedPlans(JSON.parse(savedArchivedPlans));
 
             const savedLogo = localStorage.getItem('companyLogo');
             if(savedLogo) setLogo(savedLogo);
@@ -73,30 +113,44 @@ const App: React.FC = () => {
     }, []);
 
     useEffect(() => {
-        try { localStorage.setItem('businessPlans', JSON.stringify(plans)); } 
-        catch (error) { console.error("Failed to save plans to localStorage:", error); }
+        setTimeout(() => {
+            try { localStorage.setItem('businessPlans', JSON.stringify(plans)); } 
+            catch (error) { console.error("Failed to save plans to localStorage:", error); }
+        }, 0);
     }, [plans]);
 
     useEffect(() => {
-        try { localStorage.setItem('companyLogo', logo); } 
-        catch (error) { console.error("Failed to save logo to localStorage:", error); }
+        setTimeout(() => {
+            try { localStorage.setItem('archivedBusinessPlans', JSON.stringify(archivedPlans)); }
+            catch (error) { console.error("Failed to save archived plans to localStorage:", error); }
+        }, 0);
+    }, [archivedPlans]);
+
+    useEffect(() => {
+        setTimeout(() => {
+            try { localStorage.setItem('companyLogo', logo); } 
+            catch (error) { console.error("Failed to save logo to localStorage:", error); }
+        }, 0);
     }, [logo]);
     
     useEffect(() => {
-        try { localStorage.setItem('poCounter', poCounter.toString()); }
-        catch (error) { console.error("Failed to save PO counter to localStorage:", error); }
+        setTimeout(() => {
+            try { localStorage.setItem('poCounter', poCounter.toString()); }
+            catch (error) { console.error("Failed to save PO counter to localStorage:", error); }
+        }, 0);
     }, [poCounter]);
 
     useEffect(() => {
-        try { 
-            // Create a version of the history without the large PDF data to avoid storage quota errors.
-            const historyToSave = exportHistory.map(item => {
-                const { pdfDataUrl, ...rest } = item;
-                return rest;
-            });
-            localStorage.setItem('exportHistory', JSON.stringify(historyToSave)); 
-        }
-        catch (error) { console.error("Failed to save history to localStorage:", error); }
+        setTimeout(() => {
+            try { 
+                const historyToSave = exportHistory.map(item => {
+                    const { pdfDataUrl, ...rest } = item;
+                    return rest;
+                });
+                localStorage.setItem('exportHistory', JSON.stringify(historyToSave)); 
+            }
+            catch (error) { console.error("Failed to save history to localStorage:", error); }
+        }, 0);
     }, [exportHistory]);
 
 
@@ -139,10 +193,24 @@ const App: React.FC = () => {
         }
     };
     
-    const handleDeletePlan = (planId: string) => {
-        if (window.confirm("Are you sure you want to delete this plan?")) {
+    const handleArchivePlan = (planId: string) => {
+        const planToArchive = plans.find(p => p.id === planId);
+        if (planToArchive) {
             setPlans(prev => prev.filter(p => p.id !== planId));
+            setArchivedPlans(prev => [planToArchive, ...prev]);
         }
+    };
+    
+    const handleRestorePlan = (planId: string) => {
+        const planToRestore = archivedPlans.find(p => p.id === planId);
+        if (planToRestore) {
+            setArchivedPlans(prev => prev.filter(p => p.id !== planId));
+            setPlans(prev => [planToRestore, ...prev]);
+        }
+    };
+
+    const handleDeletePermanently = (planId: string) => {
+        setArchivedPlans(prev => prev.filter(p => p.id !== planId));
     };
     
     const handleEditPlan = (planId: string) => {
@@ -238,8 +306,7 @@ const App: React.FC = () => {
         const { jsPDF } = window.jspdf;
 
         if (!html2canvas || !jsPDF) {
-            alert("PDF export library failed to load. Please check your connection and try again.");
-            setIsExporting(false);
+            alert("PDF export library not ready. Please wait a moment and try again.");
             return;
         }
 
@@ -260,20 +327,18 @@ const App: React.FC = () => {
         }
 
         try {
-            const MARGIN = 40; // Add a 40pt margin
+            const MARGIN = 40;
             const pdf = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
             const pdfWidth = pdf.internal.pageSize.getWidth();
             const contentWidth = pdfWidth - MARGIN * 2;
 
             const canvasOptions = { scale: 3, useCORS: true, logging: false, backgroundColor: '#ffffff' };
             
-            // --- Process Page 1 ---
             const canvas1 = await html2canvas(page1, canvasOptions);
             const imgData1 = canvas1.toDataURL('image/png', 1.0);
             const imgHeight1 = (canvas1.height * contentWidth) / canvas1.width;
             pdf.addImage(imgData1, 'PNG', MARGIN, MARGIN, contentWidth, imgHeight1);
 
-            // --- Process Page 2 ---
             pdf.addPage();
             const canvas2 = await html2canvas(page2, canvasOptions);
             const imgData2 = canvas2.toDataURL('image/png', 1.0);
@@ -300,8 +365,7 @@ const App: React.FC = () => {
         const { jsPDF } = window.jspdf;
         
         if (!html2canvas || !jsPDF) {
-            alert("PDF export library failed to load. Please check your connection and try again.");
-            setIsExporting(false);
+            alert("PDF export library not ready. Please wait a moment and try again.");
             return;
         }
 
@@ -313,7 +377,7 @@ const App: React.FC = () => {
         input.className = originalClassName.replace(/animate-[a-z-]+/g, ' ');
 
         try {
-            const MARGIN = 40; // Add a 40pt margin
+            const MARGIN = 40; 
             const canvas = await html2canvas(input, { scale: 3, useCORS: true, logging: false, backgroundColor: '#ffffff' });
             const imgData = canvas.toDataURL('image/png', 1.0);
             const pdf = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
@@ -335,15 +399,17 @@ const App: React.FC = () => {
         }
     };
 
-
     const renderContent = () => {
         switch(appView) {
             case 'dashboard':
                 return <SavedPlans 
                             plans={plans} 
+                            archivedPlans={archivedPlans}
                             history={exportHistory} 
                             onSelectPlan={handleSelectPlan} 
-                            onDeletePlan={handleDeletePlan} 
+                            onArchivePlan={handleArchivePlan} 
+                            onRestorePlan={handleRestorePlan}
+                            onDeletePermanently={handleDeletePermanently}
                             onDuplicatePlan={handleDuplicatePlan} 
                             onEditPlan={handleEditPlan} 
                             onNewPlan={handleNewPlan}
@@ -374,8 +440,8 @@ const App: React.FC = () => {
 
                         {activeReportView === 'plan' ? (
                             <div>
-                                <div className="flex justify-end mb-4">
-                                    <PDFExportButton onClick={exportBusinessPlan} isExporting={isExporting} />
+                                <div className="flex justify-end mb-4 space-x-2">
+                                    <PDFExportButton onClick={exportBusinessPlan} isExporting={isExporting} librariesLoaded={pdfLibrariesLoaded} />
                                 </div>
                                 <BusinessPlan ref={businessPlanRef} data={selectedPlan} logo={logo} />
                             </div>
@@ -388,7 +454,9 @@ const App: React.FC = () => {
                                             className="p-2 border bg-surface border-gray-300 text-text-primary rounded-md w-24 text-center focus:ring-2 focus:ring-primary focus:border-primary"
                                         />
                                     </div>
-                                    <PDFExportButton onClick={exportPurchaseOrder} isExporting={isExporting} />
+                                    <div className="flex justify-end space-x-2">
+                                        <PDFExportButton onClick={exportPurchaseOrder} isExporting={isExporting} librariesLoaded={pdfLibrariesLoaded} />
+                                    </div>
                                 </div>
                                 <PurchaseOrder ref={purchaseOrderRef} data={selectedPlan} containerCount={containerCount} logo={logo} poNumber={currentPoNumber} />
                             </div>
@@ -414,15 +482,17 @@ const App: React.FC = () => {
                         </div>
                         <h1 className="text-xl font-semibold text-text-primary hidden sm:block">Nexstar Planner</h1>
                     </div>
-                     <button
-                        onClick={() => { setAppView('dashboard'); setFormInitialData(undefined); }}
-                        className="text-text-secondary hover:bg-secondary p-2 rounded-full text-sm font-medium transition-colors hover:text-primary"
-                        aria-label="Back to dashboard"
-                     >
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
-                        </svg>
-                    </button>
+                     <div className="flex items-center space-x-4">
+                        <button
+                            onClick={() => { setAppView('dashboard'); setFormInitialData(undefined); }}
+                            className="text-text-secondary hover:bg-secondary p-2 rounded-full text-sm font-medium transition-colors hover:text-primary"
+                            aria-label="Back to dashboard"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+                            </svg>
+                        </button>
+                    </div>
                 </div>
             </header>
 
