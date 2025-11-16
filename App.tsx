@@ -52,7 +52,8 @@ const PDFExportButton: React.FC<PDFExportButtonProps> = ({ onClick, isExporting,
 
 const App: React.FC = () => {
     const [user, setUser] = useState<firebase.User | null>(null);
-    const [isLoading, setIsLoading] = useState(true);
+    const [isAuthLoading, setIsAuthLoading] = useState(true);
+    const [isDataLoading, setIsDataLoading] = useState(false);
     const [plans, setPlans] = useState<BusinessPlanData[]>([]);
     const [archivedPlans, setArchivedPlans] = useState<BusinessPlanData[]>([]);
     const [appView, setAppView] = useState<AppView>('dashboard');
@@ -107,28 +108,22 @@ const App: React.FC = () => {
 
     // Effect for handling Firebase Authentication state
     useEffect(() => {
-        // This listener handles all auth state changes, including after a redirect.
         const unsubscribeAuth = auth.onAuthStateChanged(firebaseUser => {
             setUser(firebaseUser);
-            setIsLoading(false); // Auth state is known, stop loading spinner.
+            setIsAuthLoading(false);
         });
-    
-        // Check for redirect result on initial load.
-        // onAuthStateChanged will still fire with the user if this is successful.
+
         getRedirectResult().catch(error => {
             console.error("Error processing sign-in redirect:", error);
-            if (error.code === 'auth/account-exists-with-different-credential') {
-                alert("An account with this email already exists with a different credential.");
-            }
         });
 
-        return () => unsubscribeAuth(); // Cleanup auth listener on unmount
+        return () => unsubscribeAuth();
     }, []);
 
-    // Effect for loading user data from Firestore when user is logged in
+    // Effect for loading/clearing user data based on auth state
     useEffect(() => {
         if (user) {
-            setIsLoading(true); // Start loading user data
+            setIsDataLoading(true);
             const unsubscribeData = onUserDataSnapshot(user.uid, (data) => {
                 if (data) {
                     setPlans(data.plans || []);
@@ -137,28 +132,17 @@ const App: React.FC = () => {
                     setPoCounter(data.poCounter || 1);
                     setExportHistory(data.exportHistory || []);
                 } else {
-                    // New user, set defaults
-                    setPlans([]);
-                    setArchivedPlans([]);
-                    setLogo('');
-                    setPoCounter(1);
-                    setExportHistory([]);
+                    setPlans([]); setArchivedPlans([]); setLogo(''); setPoCounter(1); setExportHistory([]);
                 }
-                setIsLoading(false); // Data loaded, stop loading
+                setIsDataLoading(false);
             });
-
-            return () => unsubscribeData(); // Cleanup data listener when user changes
+            return () => unsubscribeData();
         } else {
-            // User is null, clear all data
-            setPlans([]);
-            setArchivedPlans([]);
-            setLogo('');
-            setPoCounter(1);
-            setExportHistory([]);
-            setAppView('dashboard');
-            setSelectedPlan(null);
+            // Clear all data when user logs out
+            setPlans([]); setArchivedPlans([]); setLogo(''); setPoCounter(1); setExportHistory([]);
+            setAppView('dashboard'); setSelectedPlan(null);
         }
-    }, [user]); // Dependency on `user` ensures this runs when user logs in or out
+    }, [user]);
 
     const saveDataToFirestore = useCallback(async (data: Partial<UserData>) => {
         if (!user) return;
@@ -570,7 +554,7 @@ const App: React.FC = () => {
         }
     };
     
-    if (isLoading) {
+    if (isAuthLoading || isDataLoading) {
         return (
             <div className="flex items-center justify-center min-h-screen bg-background">
                 <svg className="animate-spin h-10 w-10 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
