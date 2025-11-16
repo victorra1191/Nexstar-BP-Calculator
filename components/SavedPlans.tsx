@@ -46,13 +46,6 @@ const SavedPlans: React.FC<SavedPlansProps> = ({ plans, archivedPlans, history, 
         }, 300); // Duration should match the animation
     };
 
-    const handleDeletePermanentlyClick = (e: React.MouseEvent, planId: string) => {
-        e.stopPropagation();
-        if (window.confirm("This action is permanent and cannot be undone. Are you sure you want to delete this plan forever?")) {
-            onDeletePermanently(planId);
-        }
-    };
-
     const lastUpdatedDate = plans.length > 0
         ? plans.reduce((latest, plan) => {
             const planDate = new Date(plan.updatedAt);
@@ -69,7 +62,16 @@ const SavedPlans: React.FC<SavedPlansProps> = ({ plans, archivedPlans, history, 
                          <p className="text-xs text-text-secondary font-mono">Last Updated: {lastUpdatedDate.toLocaleString()}</p>
                     )}
                 </div>
-                <div className="flex items-center space-x-2 mt-4 sm:mt-0 w-full sm:w-auto">
+                <div className="flex items-center space-x-2 mt-4 sm:mt-0 w-full flex-wrap gap-2 sm:w-auto">
+                    <label className={`bg-gray-100 text-gray-800 font-medium py-2 px-4 rounded-lg hover:bg-gray-200 transition-colors flex items-center justify-center cursor-pointer flex-1 sm:flex-initial`} title="Import Data from JSON backup">
+                        <ImportIcon />
+                        <span className="ml-2 hidden md:inline">Import Data</span>
+                        <input type="file" onChange={onImportData} className="hidden" accept=".json" />
+                    </label>
+                     <button onClick={onExportData} className="bg-gray-100 text-gray-800 font-medium py-2 px-4 rounded-lg hover:bg-gray-200 transition-colors flex items-center justify-center flex-1 sm:flex-initial" title="Export Data to JSON backup">
+                        <ExportIcon />
+                        <span className="ml-2 hidden md:inline">Export Data</span>
+                    </button>
                      <label className={`bg-blue-100 text-blue-800 font-medium py-2 px-4 rounded-lg hover:bg-blue-200 transition-colors flex items-center justify-center cursor-pointer flex-1 sm:flex-initial ${isImportingPdf || !pdfLibrariesLoaded ? 'opacity-50 cursor-not-allowed' : ''}`} title="Import from PDF">
                         {isImportingPdf ? (
                             <svg className="animate-spin h-5 w-5 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
@@ -152,7 +154,7 @@ const SavedPlans: React.FC<SavedPlansProps> = ({ plans, archivedPlans, history, 
                                     <button onClick={() => onRestorePlan(plan.id)} title="Restore" className="p-2 rounded-md text-accent hover:bg-accent/10 flex items-center text-sm font-semibold">
                                         <RestoreIcon /> <span className="ml-1 hidden sm:inline">Restore</span>
                                     </button>
-                                    <button onClick={(e) => handleDeletePermanentlyClick(e, plan.id)} title="Delete Permanently" className="p-2 rounded-md text-danger hover:bg-danger/10 flex items-center text-sm font-semibold">
+                                    <button onClick={(e) => { e.stopPropagation(); onDeletePermanently(plan.id); }} title="Delete Permanently" className="p-2 rounded-md text-danger hover:bg-danger/10 flex items-center text-sm font-semibold">
                                         <TrashIcon /> <span className="ml-1 hidden sm:inline">Delete Forever</span>
                                     </button>
                                 </div>

@@ -363,6 +363,7 @@ const App: React.FC = () => {
         const newHistory = [newItem, ...exportHistory];
         setExportHistory(newHistory);
         
+        // Don't save large PDF data to Firestore
         const historyToSave = newHistory.map(item => {
             const { pdfDataUrl, ...rest } = item;
             return rest;
@@ -381,6 +382,7 @@ const App: React.FC = () => {
     const handleUpdateHistoryStatus = async (itemId: string, status: 'approved' | 'disapproved') => {
         const newHistory = exportHistory.map(item => item.id === itemId ? { ...item, status } : item);
         setExportHistory(newHistory);
+        // Don't save large PDF data to Firestore
         const historyToSave = newHistory.map(item => {
             const { pdfDataUrl, ...rest } = item;
             return rest;
@@ -494,8 +496,81 @@ const App: React.FC = () => {
         }
     };
 
-    const handleExportData = () => { /* This function can be removed or adapted for Firestore if needed */ };
-    const handleImportData = (e: React.ChangeEvent<HTMLInputElement>) => { /* This function can be removed or adapted for Firestore if needed */ };
+    const handleExportData = () => {
+        if (!user) {
+            alert("Please sign in to export your data.");
+            return;
+        }
+        try {
+            const dataToExport: UserData = {
+                plans,
+                archivedPlans,
+                logo,
+                poCounter,
+                // Do not export the large PDF data URLs
+                exportHistory: exportHistory.map(({ pdfDataUrl, ...rest }) => rest),
+            };
+            const jsonString = JSON.stringify(dataToExport, null, 2);
+            const blob = new Blob([jsonString], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'nexstar_data_backup.json';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            alert("Data exported successfully!");
+        } catch (error) {
+            console.error("Error exporting data:", error);
+            alert("Failed to export data.");
+        }
+    };
+
+    const handleImportData = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (!user) {
+            alert("Please sign in to import data.");
+            return;
+        }
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = async (event) => {
+            try {
+                const result = event.target?.result;
+                if (typeof result !== 'string') {
+                    throw new Error("Failed to read file.");
+                }
+                const importedData = JSON.parse(result) as UserData;
+                
+                // Basic validation
+                if (!Array.isArray(importedData.plans)) {
+                     throw new Error("Invalid data format: 'plans' array is missing.");
+                }
+
+                if (window.confirm("This will overwrite your current data in the cloud. Are you sure you want to continue?")) {
+                    // Update state immediately for better UX
+                    setPlans(importedData.plans || []);
+                    setArchivedPlans(importedData.archivedPlans || []);
+                    setLogo(importedData.logo || '');
+                    setPoCounter(importedData.poCounter || 1);
+                    setExportHistory(importedData.exportHistory || []);
+
+                    // Save the entire imported data object to Firestore
+                    await saveDataToFirestore(importedData);
+                    alert("Data imported successfully and saved to your account!");
+                }
+            } catch (error) {
+                console.error("Error importing data:", error);
+                alert(`Failed to import data. Please ensure it's a valid JSON backup file. Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            } finally {
+                // Reset file input to allow re-uploading the same file
+                e.target.value = '';
+            }
+        };
+        reader.readAsText(file);
+    };
     
     const renderContent = () => {
         switch(appView) {

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'nexstar-planner-v1';
+const CACHE_NAME = 'nexstar-planner-v2';
 const urlsToCache = [
   '/',
   '/index.html',
@@ -14,6 +14,7 @@ self.addEventListener('install', event => {
         console.log('Opened cache');
         return cache.addAll(urlsToCache);
       })
+      .then(() => self.skipWaiting()) // Force the waiting service worker to become the active service worker.
   );
 });
 
@@ -65,6 +66,6 @@ self.addEventListener('activate', event => {
           }
         })
       );
-    })
+    }).then(() => self.clients.claim()) // Take control of all open pages
   );
 });
