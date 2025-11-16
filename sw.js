@@ -2,7 +2,6 @@ const CACHE_NAME = 'nexstar-planner-v1';
 const urlsToCache = [
   '/',
   '/index.html',
-  '/index.tsx',
   '/manifest.json',
   'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap',
   'https://cdn.tailwindcss.com'

@@ -18,6 +18,7 @@ export interface BusinessPlanData {
   destinationCostsTotal: number;
   products: Product[];
   aiSummary: string;
+  aiSummaryChinese?: string; // To store the Chinese translation
   createdAt: string;
   updatedAt: string;
   
