@@ -1,13 +1,10 @@
-import React, { useState, useRef, useCallback, useEffect } from 'react';
-import firebase from 'firebase/compat/app';
+import React, { useState, useRef, useEffect } from 'react';
 import BusinessPlan from './components/BusinessPlan';
 import PurchaseOrder from './components/PurchaseOrder';
 import DataInputForm from './components/DataInputForm';
 import SavedPlans from './components/SavedPlans';
 import Logo from './components/Logo';
 import { generateBusinessPlanSummary, translateTextToChinese, parseBusinessPlanFromText } from './services/geminiService';
-import { onUserDataSnapshot, saveUserData, signInWithGoogle, signOut, UserData, getRedirectResult } from './services/firestoreService';
-import { auth } from './services/firebaseConfig';
 import type { BusinessPlanData, ViewType, AppView, ExportHistoryItem } from './types';
 
 const fileToBase64 = (file: File): Promise<string> =>
@@ -51,9 +48,6 @@ const PDFExportButton: React.FC<PDFExportButtonProps> = ({ onClick, isExporting,
 };
 
 const App: React.FC = () => {
-    const [user, setUser] = useState<firebase.User | null>(null);
-    const [isAuthLoading, setIsAuthLoading] = useState(true);
-    const [isDataLoading, setIsDataLoading] = useState(false);
     const [plans, setPlans] = useState<BusinessPlanData[]>([]);
     const [archivedPlans, setArchivedPlans] = useState<BusinessPlanData[]>([]);
     const [appView, setAppView] = useState<AppView>('dashboard');
@@ -102,56 +96,47 @@ const App: React.FC = () => {
             setPdfLibrariesLoaded(true);
         }).catch(error => {
             console.error("PDF libraries failed to load:", error);
-            alert("Could not load PDF generation libraries. Exporting and Importing will be disabled. Please check your network connection or ad-blocker settings.");
+            // PDF functionality will be disabled, but app should still work
         });
+
+        // Load Data from LocalStorage
+        const storedData = localStorage.getItem('nexstar_data');
+        if (storedData) {
+            try {
+                const parsed = JSON.parse(storedData);
+                setPlans(parsed.plans || []);
+                setArchivedPlans(parsed.archivedPlans || []);
+                setLogo(parsed.logo || '');
+                setPoCounter(parsed.poCounter || 1);
+                setExportHistory(parsed.exportHistory || []);
+            } catch (err) {
+                console.error("Error loading local data", err);
+            }
+        }
     }, []);
 
-    // Effect for handling Firebase Authentication state
-    useEffect(() => {
-        const unsubscribeAuth = auth.onAuthStateChanged(firebaseUser => {
-            setUser(firebaseUser);
-            setIsAuthLoading(false);
-        });
-
-        getRedirectResult().catch(error => {
-            console.error("Error processing sign-in redirect:", error);
-        });
-
-        return () => unsubscribeAuth();
-    }, []);
-
-    // Effect for loading/clearing user data based on auth state
-    useEffect(() => {
-        if (user) {
-            setIsDataLoading(true);
-            const unsubscribeData = onUserDataSnapshot(user.uid, (data) => {
-                if (data) {
-                    setPlans(data.plans || []);
-                    setArchivedPlans(data.archivedPlans || []);
-                    setLogo(data.logo || '');
-                    setPoCounter(data.poCounter || 1);
-                    setExportHistory(data.exportHistory || []);
-                } else {
-                    setPlans([]); setArchivedPlans([]); setLogo(''); setPoCounter(1); setExportHistory([]);
-                }
-                setIsDataLoading(false);
+    const saveToLocalStorage = (updates: Partial<any>) => {
+        const currentString = localStorage.getItem('nexstar_data');
+        const current = currentString ? JSON.parse(currentString) : {};
+        const newData = { 
+            plans, 
+            archivedPlans, 
+            logo, 
+            poCounter, 
+            exportHistory,
+            ...updates 
+        };
+        
+        // Don't save large PDF data URLs to localStorage to avoid quota limits
+        if (newData.exportHistory) {
+            newData.exportHistory = newData.exportHistory.map((item: any) => {
+                 const { pdfDataUrl, ...rest } = item;
+                 return rest;
             });
-            return () => unsubscribeData();
-        } else {
-            // Clear all data when user logs out
-            setPlans([]); setArchivedPlans([]); setLogo(''); setPoCounter(1); setExportHistory([]);
-            setAppView('dashboard'); setSelectedPlan(null);
         }
-    }, [user]);
 
-    const saveDataToFirestore = useCallback(async (data: Partial<UserData>) => {
-        if (!user) return;
-        try {
-            await saveUserData(user.uid, data);
-        } catch (error) {
-            alert('Failed to save data to the cloud. Please check your connection and try again.');
-        }
-    }, [user]);
+        localStorage.setItem('nexstar_data', JSON.stringify(newData));
+    };
 
     const handleSavePlan = async (planData: Omit<BusinessPlanData, 'id' | 'aiSummary' | 'createdAt' | 'updatedAt'>) => {
         setGeneratingSummaryForPlanId('new');
@@ -170,7 +155,7 @@ const App: React.FC = () => {
         }
         
         setPlans(updatedPlans);
-        await saveDataToFirestore({ plans: updatedPlans });
+        saveToLocalStorage({ plans: updatedPlans });
         setAppView('dashboard');
         setFormInitialData(undefined);
     };
@@ -237,7 +222,7 @@ const App: React.FC = () => {
         const updatedPlans = plans.map(p => p.id === planId ? updatedPlan : p);
         
         setPlans(updatedPlans);
-        await saveDataToFirestore({ plans: updatedPlans });
+        saveToLocalStorage({ plans: updatedPlans });
         if (selectedPlan?.id === planId) {
             setSelectedPlan(updatedPlan);
         }
@@ -255,7 +240,7 @@ const App: React.FC = () => {
         const updatedPlans = plans.map(p => p.id === planId ? updatedPlan : p);
 
         setPlans(updatedPlans);
-        await saveDataToFirestore({ plans: updatedPlans });
+        saveToLocalStorage({ plans: updatedPlans });
         if (selectedPlan?.id === planId) {
             setSelectedPlan(updatedPlan);
         }
@@ -272,33 +257,33 @@ const App: React.FC = () => {
         }
     };
     
-    const handleArchivePlan = async (planId: string) => {
+    const handleArchivePlan = (planId: string) => {
         const planToArchive = plans.find(p => p.id === planId);
         if (planToArchive) {
             const newPlans = plans.filter(p => p.id !== planId);
             const newArchivedPlans = [planToArchive, ...archivedPlans];
             setPlans(newPlans);
             setArchivedPlans(newArchivedPlans);
-            await saveDataToFirestore({ plans: newPlans, archivedPlans: newArchivedPlans });
+            saveToLocalStorage({ plans: newPlans, archivedPlans: newArchivedPlans });
         }
     };
     
-    const handleRestorePlan = async (planId: string) => {
+    const handleRestorePlan = (planId: string) => {
         const planToRestore = archivedPlans.find(p => p.id === planId);
         if (planToRestore) {
             const newArchivedPlans = archivedPlans.filter(p => p.id !== planId);
             const newPlans = [planToRestore, ...plans];
             setArchivedPlans(newArchivedPlans);
             setPlans(newPlans);
-            await saveDataToFirestore({ plans: newPlans, archivedPlans: newArchivedPlans });
+            saveToLocalStorage({ plans: newPlans, archivedPlans: newArchivedPlans });
         }
     };
 
-    const handleDeletePermanently = async (planId: string) => {
+    const handleDeletePermanently = (planId: string) => {
         if (!window.confirm("This action is permanent and cannot be undone. Are you sure you want to delete this plan forever?")) return;
         const newArchivedPlans = archivedPlans.filter(p => p.id !== planId);
         setArchivedPlans(newArchivedPlans);
-        await saveDataToFirestore({ archivedPlans: newArchivedPlans });
+        saveToLocalStorage({ archivedPlans: newArchivedPlans });
     };
     
     const handleEditPlan = (planId: string) => {
@@ -328,7 +313,7 @@ const App: React.FC = () => {
             const file = e.target.files[0];
             const base64 = await fileToBase64(file);
             setLogo(base64);
-            await saveDataToFirestore({ logo: base64 });
+            saveToLocalStorage({ logo: base64 });
         }
     };
 
@@ -338,7 +323,7 @@ const App: React.FC = () => {
             const number = `PO-${new Date().getFullYear()}-${String(poCounter).padStart(4, '0')}`;
             setCurrentPoNumber(number);
             setPoCounter(nextPoCounter);
-            saveDataToFirestore({ poCounter: nextPoCounter });
+            saveToLocalStorage({ poCounter: nextPoCounter });
         }
         setActiveReportView(view);
     };
@@ -363,12 +348,12 @@ const App: React.FC = () => {
         const newHistory = [newItem, ...exportHistory];
         setExportHistory(newHistory);
         
-        // Don't save large PDF data to Firestore
+        // We save the history metadata, but NOT the large data URL to local storage
         const historyToSave = newHistory.map(item => {
             const { pdfDataUrl, ...rest } = item;
             return rest;
         });
-        await saveDataToFirestore({ exportHistory: historyToSave });
+        saveToLocalStorage({ exportHistory: historyToSave });
     };
 
     const handleViewHistoryItem = (itemId: string) => {
@@ -379,15 +364,14 @@ const App: React.FC = () => {
         }
     };
 
-    const handleUpdateHistoryStatus = async (itemId: string, status: 'approved' | 'disapproved') => {
+    const handleUpdateHistoryStatus = (itemId: string, status: 'approved' | 'disapproved') => {
         const newHistory = exportHistory.map(item => item.id === itemId ? { ...item, status } : item);
         setExportHistory(newHistory);
-        // Don't save large PDF data to Firestore
         const historyToSave = newHistory.map(item => {
             const { pdfDataUrl, ...rest } = item;
             return rest;
         });
-        await saveDataToFirestore({ exportHistory: historyToSave });
+        saveToLocalStorage({ exportHistory: historyToSave });
     };
 
     const closeHistoryModal = () => {
@@ -496,86 +480,10 @@ const App: React.FC = () => {
         }
     };
 
-    const handleExportData = () => {
-        if (!user) {
-            alert("Please sign in to export your data.");
-            return;
-        }
-        try {
-            const dataToExport: UserData = {
-                plans,
-                archivedPlans,
-                logo,
-                poCounter,
-                // Do not export the large PDF data URLs
-                exportHistory: exportHistory.map(({ pdfDataUrl, ...rest }) => rest),
-            };
-            const jsonString = JSON.stringify(dataToExport, null, 2);
-            const blob = new Blob([jsonString], { type: 'application/json' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = 'nexstar_data_backup.json';
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-            alert("Data exported successfully!");
-        } catch (error) {
-            console.error("Error exporting data:", error);
-            alert("Failed to export data.");
-        }
-    };
-
-    const handleImportData = (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (!user) {
-            alert("Please sign in to import data.");
-            return;
-        }
-        const file = e.target.files?.[0];
-        if (!file) return;
-
-        const reader = new FileReader();
-        reader.onload = async (event) => {
-            try {
-                const result = event.target?.result;
-                if (typeof result !== 'string') {
-                    throw new Error("Failed to read file.");
-                }
-                const importedData = JSON.parse(result) as UserData;
-                
-                // Basic validation
-                if (!Array.isArray(importedData.plans)) {
-                     throw new Error("Invalid data format: 'plans' array is missing.");
-                }
-
-                if (window.confirm("This will overwrite your current data in the cloud. Are you sure you want to continue?")) {
-                    // Update state immediately for better UX
-                    setPlans(importedData.plans || []);
-                    setArchivedPlans(importedData.archivedPlans || []);
-                    setLogo(importedData.logo || '');
-                    setPoCounter(importedData.poCounter || 1);
-                    setExportHistory(importedData.exportHistory || []);
-
-                    // Save the entire imported data object to Firestore
-                    await saveDataToFirestore(importedData);
-                    alert("Data imported successfully and saved to your account!");
-                }
-            } catch (error) {
-                console.error("Error importing data:", error);
-                alert(`Failed to import data. Please ensure it's a valid JSON backup file. Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
-            } finally {
-                // Reset file input to allow re-uploading the same file
-                e.target.value = '';
-            }
-        };
-        reader.readAsText(file);
-    };
-    
     const renderContent = () => {
         switch(appView) {
             case 'dashboard':
-                return <SavedPlans plans={plans} archivedPlans={archivedPlans} history={exportHistory} onSelectPlan={handleSelectPlan} onArchivePlan={handleArchivePlan} onRestorePlan={handleRestorePlan} onDeletePermanently={handleDeletePermanently} onDuplicatePlan={handleDuplicatePlan} onEditPlan={handleEditPlan} onNewPlan={handleNewPlan} onViewHistoryItem={handleViewHistoryItem} onUpdateHistoryStatus={handleUpdateHistoryStatus} onExportData={handleExportData} onImportData={handleImportData} onImportFromPdf={handleImportFromPdf} isImportingPdf={isImportingPdf} pdfLibrariesLoaded={pdfLibrariesLoaded} />;
+                return <SavedPlans plans={plans} archivedPlans={archivedPlans} history={exportHistory} onSelectPlan={handleSelectPlan} onArchivePlan={handleArchivePlan} onRestorePlan={handleRestorePlan} onDeletePermanently={handleDeletePermanently} onDuplicatePlan={handleDuplicatePlan} onEditPlan={handleEditPlan} onNewPlan={handleNewPlan} onViewHistoryItem={handleViewHistoryItem} onUpdateHistoryStatus={handleUpdateHistoryStatus} onImportFromPdf={handleImportFromPdf} isImportingPdf={isImportingPdf} pdfLibrariesLoaded={pdfLibrariesLoaded} />;
             case 'new_plan':
                 return <DataInputForm onSave={handleSavePlan} onCancel={() => setAppView('dashboard')} initialData={formInitialData} />;
             case 'view_plan':
@@ -629,33 +537,6 @@ const App: React.FC = () => {
         }
     };
     
-    if (isAuthLoading || isDataLoading) {
-        return (
-            <div className="flex items-center justify-center min-h-screen bg-background">
-                <svg className="animate-spin h-10 w-10 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-            </div>
-        );
-    }
-
-    if (!user) {
-        return (
-            <div className="bg-background min-h-screen flex flex-col items-center justify-center p-4">
-                <div className="text-center bg-surface p-10 rounded-xl shadow-2xl border border-gray-200 max-w-md w-full animate-fade-in">
-                    <Logo className="h-20 w-20 mx-auto mb-4 animate-float" />
-                    <h1 className="text-3xl font-bold text-text-primary">Welcome to Nexstar Planner</h1>
-                    <p className="text-text-secondary mt-2 mb-8">Please sign in with your Google account to continue.</p>
-                    <button onClick={signInWithGoogle} className="w-full bg-primary text-white font-bold py-3 px-6 rounded-lg hover:bg-primary-hover transition-all duration-300 shadow-lg shadow-primary/20 hover:shadow-xl flex items-center justify-center text-lg">
-                       <svg className="w-6 h-6 mr-3" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.611,20.083H42V20H24v8h11.303c-1.649,4.657-6.08,8-11.303,8c-6.627,0-12-5.373-12-12s5.373-12,12-12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C12.955,4,4,12.955,4,24s8.955,20,20,20s20-8.955,20-20C44,22.659,43.862,21.35,43.611,20.083z"></path><path fill="#FF3D00" d="M6.306,14.691l6.571,4.819C14.655,15.108,18.961,12,24,12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C16.318,4,9.656,8.337,6.306,14.691z"></path><path fill="#4CAF50" d="M24,44c5.166,0,9.86-1.977,13.409-5.192l-6.19-5.238C29.211,35.091,26.715,36,24,36c-5.202,0-9.619-3.317-11.283-7.946l-6.522,5.025C9.505,39.556,16.227,44,24,44z"></path><path fill="#1976D2" d="M43.611,20.083H42V20H24v8h11.303c-0.792,2.237-2.231,4.166-4.087,5.574l6.19,5.238C42.022,35.622,44,30.138,44,24C44,22.659,43.862,21.35,43.611,20.083z"></path></svg>
-                        Sign in with Google
-                    </button>
-                </div>
-            </div>
-        );
-    }
-    
     return (
         <div className="bg-background min-h-screen font-sans text-text-primary">
             <header className="bg-surface/80 backdrop-blur-sm shadow-sm sticky top-0 z-10 border-b border-gray-200">
@@ -675,12 +556,6 @@ const App: React.FC = () => {
                             <button onClick={() => { setAppView('dashboard'); setFormInitialData(undefined); }} className="text-text-secondary hover:bg-secondary p-2 rounded-full text-sm font-medium transition-colors hover:text-primary" aria-label="Back to dashboard">
                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" /></svg>
                             </button>
-                        )}
-                        {user && (
-                            <div className="flex items-center space-x-3">
-                                <img src={user.photoURL || undefined} alt={user.displayName || 'User'} className="h-8 w-8 rounded-full"/>
-                                <button onClick={signOut} className="text-sm font-medium text-text-secondary hover:text-danger transition-colors">Sign Out</button>
-                            </div>
                         )}
                     </div>
                 </div>
