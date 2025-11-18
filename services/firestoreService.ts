@@ -57,20 +57,18 @@ export const onUserDataSnapshot = (uid: string, callback: (data: UserData | null
 
 /**
  * Signs the user in with Google using a redirect.
- * It sets auth persistence to 'none' to work in environments with disabled web storage.
- * This means the user will have to sign in again after a page refresh.
+ * It sets auth persistence to 'local' to keep the user signed in across sessions.
  */
 export const signInWithGoogle = (): Promise<void> => {
     const provider = new firebase.auth.GoogleAuthProvider();
     
-    // Set persistence to 'none' to avoid web storage issues in sandboxed iframes.
-    // The user's session will not be remembered across page reloads.
-    return auth.setPersistence(firebase.auth.Auth.Persistence.NONE)
+    // Set persistence to 'local' to remember the user's session across browser restarts.
+    return auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL)
         .then(() => {
             return auth.signInWithRedirect(provider);
         })
         .catch((error) => {
-            console.error("Error setting auth persistence to 'none'. Trying redirect anyway.", error);
+            console.error("Error setting auth persistence to 'local'. Trying redirect anyway.", error);
             // Fallback to trying the redirect if setting persistence fails.
             return auth.signInWithRedirect(provider);
         });
