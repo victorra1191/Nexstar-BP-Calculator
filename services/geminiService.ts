@@ -1,11 +1,22 @@
 import { GoogleGenAI } from "@google/genai";
 import type { BusinessPlanData } from '../types';
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// Declare process to avoid TypeScript errors when accessing process.env.API_KEY
+// The API key must be obtained exclusively from the environment variable process.env.API_KEY.
+declare const process: {
+  env: {
+    API_KEY: string;
+    [key: string]: string | undefined;
+  };
+};
+
+const apiKey = process.env.API_KEY;
+
+const ai = new GoogleGenAI({ apiKey });
 
 export const generateBusinessPlanSummary = async (data: BusinessPlanData): Promise<string> => {
-    if (!process.env.API_KEY) {
-        return "Failed: API Key is missing. Please configure process.env.API_KEY.";
+    if (!apiKey) {
+        return "Failed: API Key is missing. Please configure API_KEY in your environment.";
     }
 
     const productList = data.products.map(p => `- ${p.nexstarModel} (${p.qtyInContainer} units)`).join('\n');
@@ -43,23 +54,23 @@ export const generateBusinessPlanSummary = async (data: BusinessPlanData): Promi
 
         // Handle specific Google API errors to provide actionable feedback
         if (errorMsg.includes('API_KEY_SERVICE_BLOCKED') || errorMsg.includes('GenerativeService.GenerateContent are blocked')) {
-            return "Failed: The API Key is valid, but the 'Generative Language API' is disabled in Google Cloud Console. Please enable it.";
+            return "Failed: The API Key is valid, but the 'Generative Language API' is disabled in Google Cloud Console. Please enable it for this project.";
         }
         
         if (errorMsg.includes('PERMISSION_DENIED') || errorMsg.includes('403')) {
-            return "Failed: Access forbidden. Please check your API Key restrictions.";
+            return "Failed: Access forbidden. Please check your API Key restrictions in Google Cloud Console.";
         }
         
         if (errorMsg.includes('429') || errorMsg.includes('quota')) {
             return "Failed: Quota exceeded. Please try again later.";
         }
 
-        return "Failed to generate AI summary. Please check console for details.";
+        return `Failed to generate summary: ${errorMsg}`;
     }
 };
 
 export const translateTextToChinese = async (textToTranslate: string): Promise<string> => {
-    if (!process.env.API_KEY) {
+    if (!apiKey) {
         return "Translation failed: API Key is missing.";
     }
 
