@@ -17,7 +17,7 @@ import {
 import type { BusinessPlanData, ViewType, AppView, ExportHistoryItem } from './types';
 import type { User } from 'firebase/auth';
 
-const APP_VERSION = "v1.5"; // Updated version to confirm deployment
+const APP_VERSION = "v1.6"; // Updated version to confirm deployment
 
 const fileToBase64 = (file: File): Promise<string> =>
   new Promise((resolve, reject) => {
