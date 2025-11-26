@@ -1,24 +1,11 @@
 import { GoogleGenAI } from "@google/genai";
 import type { BusinessPlanData } from '../types';
 
-// Use the key provided by the user as a fallback if the environment variable is not set.
-// This ensures functionality in environments like Vercel without manual env var configuration.
-const FALLBACK_KEY = "AIzaSyACFbjUV1rG0UnB1n1h0UbHdabtS5xdqZ0";
-const apiKey = process.env.API_KEY || FALLBACK_KEY;
-
-const ai = new GoogleGenAI({ apiKey: apiKey });
-
-// Safely log to help debug
-if (!apiKey) {
-    console.error("API_KEY is missing. AI features will not work.");
-} else {
-    // Log last 4 chars to verify which key is being used (safe log)
-    console.log("API_KEY loaded.");
-}
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 export const generateBusinessPlanSummary = async (data: BusinessPlanData): Promise<string> => {
-    if (!apiKey) {
-        return "Failed: API Key is missing. Please configure VITE_API_KEY.";
+    if (!process.env.API_KEY) {
+        return "Failed: API Key is missing. Please configure process.env.API_KEY.";
     }
 
     const productList = data.products.map(p => `- ${p.nexstarModel} (${p.qtyInContainer} units)`).join('\n');
@@ -56,11 +43,11 @@ export const generateBusinessPlanSummary = async (data: BusinessPlanData): Promi
 
         // Handle specific Google API errors to provide actionable feedback
         if (errorMsg.includes('API_KEY_SERVICE_BLOCKED') || errorMsg.includes('GenerativeService.GenerateContent are blocked')) {
-            return "Failed: The 'Generative Language API' is not enabled in Google Cloud Console. Please enable it for your project.";
+            return "Failed: The API Key is valid, but the 'Generative Language API' is disabled in Google Cloud Console. Please enable it.";
         }
         
         if (errorMsg.includes('PERMISSION_DENIED') || errorMsg.includes('403')) {
-            return "Failed: Access forbidden. Please check your API Key restrictions/permissions.";
+            return "Failed: Access forbidden. Please check your API Key restrictions.";
         }
         
         if (errorMsg.includes('429') || errorMsg.includes('quota')) {
@@ -72,7 +59,7 @@ export const generateBusinessPlanSummary = async (data: BusinessPlanData): Promi
 };
 
 export const translateTextToChinese = async (textToTranslate: string): Promise<string> => {
-    if (!apiKey) {
+    if (!process.env.API_KEY) {
         return "Translation failed: API Key is missing.";
     }
 
