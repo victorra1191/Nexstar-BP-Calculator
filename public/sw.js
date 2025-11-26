@@ -1,4 +1,4 @@
-const CACHE_NAME = 'nexstar-planner-v12';
+const CACHE_NAME = 'nexstar-planner-v18';
 const urlsToCache = [
   '/',
   '/index.html',
@@ -22,10 +22,12 @@ self.addEventListener('install', event => {
 
 self.addEventListener('fetch', event => {
   // Use a Network falling back to Cache strategy for navigation requests.
+  // This ensures the user always gets the latest version of the app shell.
   if (event.request.mode === 'navigate') {
     event.respondWith(
       fetch(event.request)
         .then(response => {
+          // If the fetch is successful, cache the response for offline use and return it.
           const responseToCache = response.clone();
           caches.open(CACHE_NAME).then(cache => {
             cache.put(event.request, responseToCache);
@@ -33,29 +35,38 @@ self.addEventListener('fetch', event => {
           return response;
         })
         .catch(() => {
+          // If the fetch fails (e.g., offline), return the cached page.
           return caches.match('/index.html') || caches.match(event.request);
         })
     );
-    return;
+    return; // Important: end execution for navigate requests.
   }
 
-  // Use a Cache falling back to Network strategy for all other assets.
+  // Use a Cache falling back to Network strategy for all other assets (JS, CSS, images, etc.).
+  // This is efficient and provides offline functionality for assets.
   event.respondWith(
     caches.match(event.request)
       .then(response => {
+        // Cache hit - return response.
         if (response) {
           return response;
         }
+
+        // Not in cache - fetch from network, then cache for future use.
         return fetch(event.request).then(
           networkResponse => {
+            // Check for a valid response before caching. Opaque responses (from no-cors requests)
+            // shouldn't be cached as their status can't be checked.
             if (!networkResponse || networkResponse.status !== 200 || networkResponse.type === 'opaque') {
               return networkResponse;
             }
+
             const responseToCache = networkResponse.clone();
             caches.open(CACHE_NAME)
               .then(cache => {
                 cache.put(event.request, responseToCache);
               });
+
             return networkResponse;
           }
         );
@@ -75,6 +86,6 @@ self.addEventListener('activate', event => {
           }
         })
       );
-    }).then(() => self.clients.claim())
+    }).then(() => self.clients.claim()) // Take control of all open pages.
   );
 });

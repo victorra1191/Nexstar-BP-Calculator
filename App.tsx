@@ -17,6 +17,8 @@ import {
 import type { BusinessPlanData, ViewType, AppView, ExportHistoryItem } from './types';
 import type { User } from 'firebase/auth';
 
+const APP_VERSION = "v1.3"; // Updated version to confirm deployment
+
 const fileToBase64 = (file: File): Promise<string> =>
   new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -82,6 +84,7 @@ const App: React.FC = () => {
     const [pdfLibrariesLoaded, setPdfLibrariesLoaded] = useState(false);
     const [generatingSummaryForPlanId, setGeneratingSummaryForPlanId] = useState<string | null>(null);
     const [isTranslating, setIsTranslating] = useState(false);
+    const [syncError, setSyncError] = useState<string | null>(null);
     
     const businessPlanRef = useRef<HTMLDivElement>(null);
     const businessPlanChineseRef = useRef<HTMLDivElement>(null);
@@ -91,12 +94,12 @@ const App: React.FC = () => {
     useEffect(() => {
         const unsubscribeAuth = subscribeToAuthChanges(async (currentUser) => {
             setUser(currentUser);
+            setSyncError(null);
             
             if (currentUser) {
                 // User is logged in. Check for migration and subscribe to data.
                 
                 // MIGRATION CHECK:
-                // If user has NO data in Firestore, but HAS data in LocalStorage, migrate it.
                 const cloudData = await getUserDataOnce(currentUser.uid);
                 const localDataString = localStorage.getItem('nexstar_data');
                 
@@ -109,12 +112,11 @@ const App: React.FC = () => {
                             archivedPlans: localData.archivedPlans || [],
                             logo: localData.logo || '',
                             poCounter: localData.poCounter || 1,
-                            exportHistory: (localData.exportHistory || []).map((h: any) => { const { pdfDataUrl, ...r } = h; return r; }) // Ensure no huge strings
+                            exportHistory: (localData.exportHistory || []).map((h: any) => { const { pdfDataUrl, ...r } = h; return r; }) 
                         });
-                        // Optional: Clear local storage after successful migration
-                        // localStorage.removeItem('nexstar_data'); 
                     } catch (e) {
                         console.error("Migration failed", e);
+                        setSyncError("Failed to migrate local data to cloud.");
                     }
                 }
 
@@ -127,7 +129,7 @@ const App: React.FC = () => {
                         setPoCounter(data.poCounter || 1);
                         setExportHistory(data.exportHistory || []);
                     } else {
-                        // New user with no data (and no migration happened)
+                        // New user with no data
                         setPlans([]);
                         setArchivedPlans([]);
                         setLogo('');
@@ -167,9 +169,19 @@ const App: React.FC = () => {
     }, []);
 
     // Helper to persist data to Firestore if logged in
-    const persistData = (updates: Partial<UserData>) => {
+    const persistData = async (updates: Partial<UserData>) => {
         if (user) {
-            saveUserData(user.uid, updates);
+            try {
+                await saveUserData(user.uid, updates);
+                setSyncError(null);
+            } catch (error: any) {
+                console.error("Sync Error:", error);
+                if (error.code === 'permission-denied') {
+                    setSyncError("Permission Denied: Please update your Firestore Database Rules in Firebase Console to allow writes.");
+                } else {
+                    setSyncError("Failed to save changes to the cloud. Check your internet connection.");
+                }
+            }
         } else {
             console.warn("User not logged in, cannot save data.");
         }
@@ -384,7 +396,7 @@ const App: React.FC = () => {
         setHistoryPdfUrl(null);
     };
 
-    // Export functions (PDF generation) - Unchanged mostly
+    // Export functions (PDF generation)
     const exportBusinessPlan = async () => {
         const html2canvas = (window as any).html2canvas;
         const jspdfLib = (window as any).jspdf;
@@ -588,9 +600,9 @@ const App: React.FC = () => {
                         <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" className="h-6 w-6" />
                         <span>Sign in with Google</span>
                     </button>
-                    <p className="mt-6 text-xs text-text-secondary/70">
-                        If you have existing local data, it will be automatically migrated to your cloud account upon your first login.
-                    </p>
+                    <div className="mt-8 text-xs text-text-secondary">
+                        <p>App Version: {APP_VERSION}</p>
+                    </div>
                 </div>
             </div>
         );
@@ -599,6 +611,11 @@ const App: React.FC = () => {
     // Main App
     return (
         <div className="bg-background min-h-screen font-sans text-text-primary">
+            {syncError && (
+                <div className="bg-red-500 text-white text-center py-2 px-4 text-sm font-bold shadow-md">
+                    ⚠️ {syncError}
+                </div>
+            )}
             <header className="bg-surface/80 backdrop-blur-sm shadow-sm sticky top-0 z-10 border-b border-gray-200">
                 <div className="container mx-auto px-4 sm:px-6 py-3 flex justify-between items-center">
                     <div className="flex items-center space-x-4">
@@ -635,13 +652,17 @@ const App: React.FC = () => {
                 {renderContent()}
             </main>
 
+            <footer className="text-center py-4 text-xs text-text-secondary">
+                <p>{APP_VERSION}</p>
+            </footer>
+
             {historyModalOpen && historyPdfUrl && (
                 <div className="fixed inset-0 bg-black bg-opacity-75 flex justify-center items-center z-50 p-4 animate-fade-in">
                     <div className="bg-white rounded-lg shadow-2xl w-full h-full max-w-5xl flex flex-col">
                         <div className="flex justify-between items-center p-4 border-b bg-gray-50 rounded-t-lg">
                             <h3 className="text-lg font-bold text-text-primary">PDF Preview</h3>
                             <button onClick={closeHistoryModal} className="text-gray-400 hover:text-gray-800 bg-gray-200 hover:bg-gray-300 rounded-full h-8 w-8 flex items-center justify-center transition-colors">
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                             </button>
                         </div>
                         <div className="flex-grow bg-gray-200">

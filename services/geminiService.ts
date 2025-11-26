@@ -2,8 +2,11 @@ import { GoogleGenAI, HarmCategory, HarmBlockThreshold } from "@google/genai";
 import type { BusinessPlanData } from '../types';
 
 // Access the API key from Vite environment variables (Vercel) OR use the hardcoded fallback.
-// This ensures the app works immediately even if the Vercel variable isn't set yet.
-const apiKey = process.env.API_KEY || "AIzaSyACFbjUV1rG0UnB1n1h0UbHdabtS5xdqZ0";
+// We add an extra check for the string "undefined" which can happen during some build processes.
+let apiKey = process.env.API_KEY;
+if (!apiKey || apiKey === "undefined") {
+    apiKey = "AIzaSyACFbjUV1rG0UnB1n1h0UbHdabtS5xdqZ0";
+}
 
 // Initialize conditionally to prevent crash if key is somehow missing
 const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
