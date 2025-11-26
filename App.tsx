@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import BusinessPlan from './components/BusinessPlan';
 import PurchaseOrder from './components/PurchaseOrder';
@@ -21,7 +20,7 @@ import {
 import type { BusinessPlanData, ViewType, AppView, ExportHistoryItem, ExportHistoryItemWithUrl } from './types';
 import type { User } from 'firebase/auth';
 
-const APP_VERSION = "v2.2.3"; // Updated version to confirm deployment with Storage integration
+const APP_VERSION = "v2.2.4"; // Updated version to confirm deployment with Storage integration
 
 // Helper to convert File to Base64 (used for preview before upload to storage)
 const fileToBase64 = (file: File): Promise<string> =>
