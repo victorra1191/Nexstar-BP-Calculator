@@ -1,4 +1,3 @@
-
 import React, { forwardRef, useMemo } from 'react';
 import type { BusinessPlanData } from '../types';
 
@@ -55,7 +54,7 @@ const PurchaseOrder = forwardRef<HTMLDivElement, PurchaseOrderProps>(({ data, co
                     <p>Wangjcheng@gmail.com</p>
                 </div>
                  <div className="text-right">
-                    <h2 className="font-semibold text-text-secondary tracking-wider uppercase mb-2">SHIP TO</p>
+                    <h2 className="font-semibold text-text-secondary tracking-wider uppercase mb-2">SHIP TO</h2>
                     <p className="font-bold text-text-primary">{data.destination}</p>
                     <p>Eduardo García</p>
                     <p>e.garcia@thenexstar.com</p>

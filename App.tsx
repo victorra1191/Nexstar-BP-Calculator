@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import BusinessPlan from './components/BusinessPlan';
 import PurchaseOrder from './components/PurchaseOrder';
@@ -21,7 +20,7 @@ import {
 import type { BusinessPlanData, ViewType, AppView, ExportHistoryItem } from './types';
 import type { User } from 'firebase/auth';
 
-const APP_VERSION = "v2.2"; // Updated version to confirm deployment with Storage integration
+const APP_VERSION = "v2.2.2"; // Updated version to confirm deployment with Storage integration
 
 // Helper to convert File to Base64 (used for preview before upload to storage)
 const fileToBase64 = (file: File): Promise<string> =>
@@ -48,7 +47,7 @@ const PDFExportButton: React.FC<PDFExportButtonProps> = ({ onClick, isExporting,
         }
         return (
             <>
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
                 Download PDF
             </>
         );
@@ -78,7 +77,7 @@ const App: React.FC = () => {
     const [containerCount, setContainerCount] = useState(1);
     const [poCounter, setPoCounter] = useState(1);
     const [logoUrl, setLogoUrl] = useState(''); // Stores URL from Storage
-    const [logoStoragePath, setLogoStoragePath] = useState<string | undefined>(undefined); // Stores path in Storage
+    const [logoStoragePath, setLogoStoragePath] = useState<string | null>(null); // Stores path in Storage (null for empty)
     const [formInitialData, setFormInitialData] = useState<BusinessPlanData | undefined>(undefined);
     const [currentPoNumber, setCurrentPoNumber] = useState('');
     const [exportHistory, setExportHistory] = useState<ExportHistoryItem[]>([]);
@@ -183,7 +182,7 @@ const App: React.FC = () => {
                             setLogoStoragePath(data.logoStoragePath);
                         } else {
                             setLogoUrl('');
-                            setLogoStoragePath(undefined);
+                            setLogoStoragePath(null);
                         }
 
                         // Pre-fetch product image URLs for plans
@@ -242,7 +241,7 @@ const App: React.FC = () => {
                         setPlans([]);
                         setArchivedPlans([]);
                         setLogoUrl('');
-                        setLogoStoragePath(undefined);
+                        setLogoStoragePath(null);
                         setPoCounter(1);
                         setExportHistory([]);
                     }
@@ -255,7 +254,7 @@ const App: React.FC = () => {
                 setPlans([]);
                 setArchivedPlans([]);
                 setLogoUrl('');
-                setLogoStoragePath(undefined);
+                setLogoStoragePath(null);
                 setAuthLoading(false);
             }
         });
@@ -841,7 +840,7 @@ const App: React.FC = () => {
                         <div className="flex items-center space-x-4">
                              <Logo className="h-10 w-10" />
                              <label htmlFor="logo-upload" className="cursor-pointer text-text-secondary hover:text-primary transition-colors group relative" title="Upload Company Logo">
-                                {logoUrl ? <img src={logoUrl} alt="Logo" className="h-10 w-10 bg-gray-100 p-1 rounded-md object-contain"/> : <div className="h-10 w-10 bg-secondary rounded-md flex items-center justify-center text-primary"><svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg></div>}
+                                {logoUrl ? <img src={logoUrl} alt="Logo" className="h-10 w-10 bg-gray-100 p-1 rounded-md object-contain"/> : <div className="h-10 w-10 bg-secondary rounded-md flex items-center justify-center text-primary"><svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg></div>}
                                 <input id="logo-upload" type="file" className="hidden" accept="image/*" onChange={handleLogoUpload} />
                              </label>
                         </div>
@@ -850,7 +849,7 @@ const App: React.FC = () => {
                      <div className="flex items-center space-x-4">
                         {appView !== 'dashboard' && (
                             <button onClick={() => { setAppView('dashboard'); setFormInitialData(undefined); }} className="text-text-secondary hover:bg-secondary p-2 rounded-full text-sm font-medium transition-colors hover:text-primary" aria-label="Back to dashboard">
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6z" /></svg>
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 6a2 0 012-2h2a2 0 012 2v2a2 0 01-2 2H6a2 0 01-2-2V6zM14 6a2 0 012-2h2a2 0 012 2v2a2 0 01-2 2h-2a2 0 01-2-2V6zM4 16a2 0 012-2h2a2 0 012 2v2a2 0 01-2 2H6a2 0 01-2-2v-2zM14 16a2 0 012-2h2a2 0 012 2v2a2 0 01-2 2h-2a2 0 01-2-2V6z" /></svg>
                             </button>
                         )}
                         <div className="h-8 w-px bg-gray-200 mx-2"></div>
