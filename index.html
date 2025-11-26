@@ -66,19 +66,6 @@
         font-family: 'Inter', sans-serif;
       }
     </style>
-<script type="importmap">
-{
-  "imports": {
-    "react": "https://aistudiocdn.com/react@^19.2.0",
-    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
-    "react/": "https://aistudiocdn.com/react@^19.2.0/",
-    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.30.0",
-    "firebase/": "https://aistudiocdn.com/firebase@^12.6.0/",
-    "vite": "https://aistudiocdn.com/vite@^7.2.4",
-    "@vitejs/plugin-react": "https://aistudiocdn.com/@vitejs/plugin-react@^5.1.1"
-  }
-}
-</script>
 </head>
   <body>
     <div id="root"></div>
@@ -88,6 +75,10 @@
         window.addEventListener('load', () => {
           navigator.serviceWorker.register('/sw.js').then(registration => {
             console.log('ServiceWorker registration successful with scope: ', registration.scope);
+            // Check for updates periodically
+            setInterval(() => {
+              registration.update();
+            }, 60 * 60 * 1000); // Check every hour
           }, err => {
             console.log('ServiceWorker registration failed: ', err);
           });
