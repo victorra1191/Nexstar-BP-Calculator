@@ -11,10 +11,10 @@ interface PurchaseOrderProps {
 const PurchaseOrder = forwardRef<HTMLDivElement, PurchaseOrderProps>(({ data, containerCount, logo, poNumber }, ref) => {
 
     const totals = useMemo(() => {
-        const totalQty = data.products.reduce((acc, p) => acc + p.qtyInContainer, 0) * containerCount;
-        const totalFobCost = data.products.reduce((acc, p) => acc + (p.fobCostUnit * p.qtyInContainer), 0) * containerCount;
-        const totalFreight = data.freightTotal * containerCount;
-        const totalDestinationCost = data.destinationCostsTotal * containerCount;
+        const totalQty = data.products.reduce((acc, p) => acc + (p.qtyInContainer || 0), 0) * containerCount;
+        const totalFobCost = data.products.reduce((acc, p) => acc + ((p.fobCostUnit || 0) * (p.qtyInContainer || 0)), 0) * containerCount;
+        const totalFreight = (data.freightTotal || 0) * containerCount;
+        const totalDestinationCost = (data.destinationCostsTotal || 0) * containerCount;
         const grandTotal = totalFobCost + totalFreight + totalDestinationCost;
         return { totalQty, totalFobCost, totalFreight, totalDestinationCost, grandTotal };
     }, [data, containerCount]);
@@ -64,7 +64,10 @@ const PurchaseOrder = forwardRef<HTMLDivElement, PurchaseOrderProps>(({ data, co
                             </tr>
                         </thead>
                         <tbody className="font-mono">
-                            {data.products.map(product => (
+                            {data.products.map(product => {
+                                const qty = product.qtyInContainer || 0;
+                                const cost = product.fobCostUnit || 0;
+                                return (
                                 <tr key={product.id} className="border-b border-gray-100">
                                     <td className="p-3">
                                         <div className="flex items-center space-x-4">
@@ -79,13 +82,14 @@ const PurchaseOrder = forwardRef<HTMLDivElement, PurchaseOrderProps>(({ data, co
                                             </div>
                                         </div>
                                     </td>
-                                    <td className="p-3 text-right text-text-secondary">{product.qtyInContainer.toLocaleString()}</td>
+                                    <td className="p-3 text-right text-text-secondary">{qty.toLocaleString()}</td>
                                     <td className="p-3 text-right text-text-secondary">{containerCount}</td>
-                                    <td className="p-3 text-right text-text-secondary">{(product.qtyInContainer * containerCount).toLocaleString()}</td>
-                                    <td className="p-3 text-right text-text-secondary">${product.fobCostUnit.toFixed(2)}</td>
-                                    <td className="p-3 text-right font-semibold text-text-primary">${(product.fobCostUnit * product.qtyInContainer * containerCount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                                    <td className="p-3 text-right text-text-secondary">{(qty * containerCount).toLocaleString()}</td>
+                                    <td className="p-3 text-right text-text-secondary">${cost.toFixed(2)}</td>
+                                    <td className="p-3 text-right font-semibold text-text-primary">${(cost * qty * containerCount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                                 </tr>
-                            ))}
+                                );
+                            })}
                         </tbody>
                     </table>
                 </div>

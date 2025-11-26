@@ -18,6 +18,7 @@ const createNewProduct = (): Product => ({
     fobCostUnit: 10.00,
     estimatedSalesPrice: 20.00,
     productImage: '',
+    cbmPerUnit: 0,
 });
 
 const getInitialFormState = (initialData?: BusinessPlanData): Omit<BusinessPlanData, 'id' | 'aiSummary' | 'createdAt' | 'updatedAt' | 'totalUnitCost' | 'unitSalesMargin' | 'grossSalesMarginPercent' | 'grossMarkupPercent' | 'netMarkupPercent' | 'totalInvestment' | 'totalSales' | 'totalProfit' | 'interest15Percent' | 'netProfit' | 'netSalesMarginPercent'> => {
@@ -175,10 +176,11 @@ const DataInputForm: React.FC<DataInputFormProps> = ({ onSave, onCancel, initial
                                             <InputField label="Supplier Reference" id={`supplierReference_${product.id}`} name="supplierReference" value={product.supplierReference} onChange={(e) => handleProductChange(product.id, e)} />
                                         </div>
                                         <InputField label="Original Supplier" id={`originalSupplier_${product.id}`} name="originalSupplier" value={product.originalSupplier} onChange={(e) => handleProductChange(product.id, e)} />
-                                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                                            <InputField label="Qty in Container" id={`qtyInContainer_${product.id}`} name="qtyInContainer" type="number" value={product.qtyInContainer} onChange={(e) => handleProductChange(product.id, e)} />
-                                            <InputField label="FOB Cost (Unit)" id={`fobCostUnit_${product.id}`} name="fobCostUnit" type="number" step="0.01" value={product.fobCostUnit} onChange={(e) => handleProductChange(product.id, e)} />
-                                            <InputField label="Sales Price (Unit)" id={`estimatedSalesPrice_${product.id}`} name="estimatedSalesPrice" type="number" step="0.01" value={product.estimatedSalesPrice} onChange={(e) => handleProductChange(product.id, e)} />
+                                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                                            <InputField label="Qty" id={`qtyInContainer_${product.id}`} name="qtyInContainer" type="number" value={product.qtyInContainer} onChange={(e) => handleProductChange(product.id, e)} />
+                                            <InputField label="CBM (m³)" id={`cbmPerUnit_${product.id}`} name="cbmPerUnit" type="number" step="0.001" value={product.cbmPerUnit} onChange={(e) => handleProductChange(product.id, e)} />
+                                            <InputField label="FOB ($)" id={`fobCostUnit_${product.id}`} name="fobCostUnit" type="number" step="0.01" value={product.fobCostUnit} onChange={(e) => handleProductChange(product.id, e)} />
+                                            <InputField label="Sales ($)" id={`estimatedSalesPrice_${product.id}`} name="estimatedSalesPrice" type="number" step="0.01" value={product.estimatedSalesPrice} onChange={(e) => handleProductChange(product.id, e)} />
                                         </div>
                                          <div>
                                             <label className="block text-sm font-medium text-text-secondary">Product Image</label>

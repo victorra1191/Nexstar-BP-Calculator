@@ -99,9 +99,9 @@ const SavedPlans: React.FC<SavedPlansProps> = ({ plans, archivedPlans, history, 
                                 <p className="text-sm text-text-secondary">{plan.products.length} {plan.products.length > 1 ? 'Products' : 'Product'}</p>
                                 <p className="text-xs text-text-secondary/80 mt-1 mb-3">Created: {new Date(plan.createdAt).toLocaleDateString()}</p>
                                 <div className="text-sm space-y-2 font-mono text-text-secondary">
-                                    <p className="flex justify-between"><span>Investment:</span> <span className="font-semibold text-text-primary">${plan.totalInvestment.toLocaleString('en-US', {minimumFractionDigits: 2})}</span></p>
-                                    <p className="flex justify-between"><span>Total Sales:</span> <span className="font-semibold text-text-primary">${plan.totalSales.toLocaleString('en-US', {minimumFractionDigits: 2})}</span></p>
-                                    <p className="flex justify-between"><span>Net Profit:</span> <span className="font-bold text-accent">${plan.netProfit.toLocaleString('en-US', {minimumFractionDigits: 2})}</span></p>
+                                    <p className="flex justify-between"><span>Investment:</span> <span className="font-semibold text-text-primary">${(plan.totalInvestment || 0).toLocaleString('en-US', {minimumFractionDigits: 2})}</span></p>
+                                    <p className="flex justify-between"><span>Total Sales:</span> <span className="font-semibold text-text-primary">${(plan.totalSales || 0).toLocaleString('en-US', {minimumFractionDigits: 2})}</span></p>
+                                    <p className="flex justify-between"><span>Net Profit:</span> <span className="font-bold text-accent">${(plan.netProfit || 0).toLocaleString('en-US', {minimumFractionDigits: 2})}</span></p>
                                 </div>
                             </div>
                             <div className="flex items-center justify-between p-3 bg-background border-t border-gray-200 rounded-b-lg">

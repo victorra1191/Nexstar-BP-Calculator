@@ -78,9 +78,9 @@ const InfoItem: React.FC<{ label: string; value: string | number; isCurrency?: b
     <span className="text-gray-500">{label}</span>
     <span className={`font-medium ${valueClass}`}>
       {isCurrency && typeof value === 'number'
-        ? `$${value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+        ? `$${(value || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
         : isPercent && typeof value === 'number'
-        ? `${value.toFixed(2)}%`
+        ? `${(value || 0).toFixed(2)}%`
         : value
       }
     </span>
@@ -122,17 +122,41 @@ const BusinessPlan = forwardRef<HTMLDivElement, BusinessPlanProps>(
     const T = translations[displayLanguage];
 
     const primaryImage = data.products && data.products.length > 0 ? data.products[0].productImage : '';
-    const totalQty = data.products.reduce((acc, p) => acc + p.qtyInContainer, 0);
-    const freightCostPerUnit = totalQty > 0 ? data.freightTotal / totalQty : 0;
-    const destinationCostPerUnit = totalQty > 0 ? data.destinationCostsTotal / totalQty : 0;
+    
+    const totalQty = data.products.reduce((acc, p) => acc + (p.qtyInContainer || 0), 0);
+    // Calculate total CBM to see if we should use volume-weighted distribution
+    const totalCbm = data.products.reduce((acc, p) => acc + ((p.qtyInContainer || 0) * (p.cbmPerUnit || 0)), 0);
 
     const productsOnPage1 = data.products.slice(0, 1);
     const productsOnPage2 = data.products.slice(1);
 
     const renderProduct = (product: Product) => {
-        const totalUnitCost = product.fobCostUnit + freightCostPerUnit + destinationCostPerUnit;
-        const unitSalesMargin = product.estimatedSalesPrice - totalUnitCost;
-        const grossSalesMarginPercent = product.estimatedSalesPrice > 0 ? (unitSalesMargin / product.estimatedSalesPrice) * 100 : 0;
+        let freightAllocatedPerUnit = 0;
+        let destAllocatedPerUnit = 0;
+        const qty = product.qtyInContainer || 0;
+
+        // Cost Allocation Logic
+        // If we have valid volume data (Total CBM > 0), distribute costs based on volume occupied.
+        // Otherwise, fall back to simple per-unit distribution.
+        if (totalCbm > 0 && (product.cbmPerUnit || 0) > 0) {
+             const productTotalCbm = qty * product.cbmPerUnit;
+             const shareOfContainer = productTotalCbm / totalCbm;
+             
+             // Total cost for this product line based on volume share
+             const totalFreightForProduct = data.freightTotal * shareOfContainer;
+             const totalDestForProduct = data.destinationCostsTotal * shareOfContainer;
+
+             freightAllocatedPerUnit = qty > 0 ? totalFreightForProduct / qty : 0;
+             destAllocatedPerUnit = qty > 0 ? totalDestForProduct / qty : 0;
+        } else {
+             // Fallback: Average per unit
+             freightAllocatedPerUnit = totalQty > 0 ? data.freightTotal / totalQty : 0;
+             destAllocatedPerUnit = totalQty > 0 ? data.destinationCostsTotal / totalQty : 0;
+        }
+
+        const totalUnitCost = (product.fobCostUnit || 0) + freightAllocatedPerUnit + destAllocatedPerUnit;
+        const unitSalesMargin = (product.estimatedSalesPrice || 0) - totalUnitCost;
+        const grossSalesMarginPercent = (product.estimatedSalesPrice || 0) > 0 ? (unitSalesMargin / product.estimatedSalesPrice) * 100 : 0;
         const grossMarkupPercent = totalUnitCost > 0 ? (unitSalesMargin / totalUnitCost) * 100 : 0;
 
         return (
@@ -145,12 +169,13 @@ const BusinessPlan = forwardRef<HTMLDivElement, BusinessPlanProps>(
                 }
                 <InfoItem label={T.originalSupplier} value={product.originalSupplier} />
                 <InfoItem label={T.supplierReference} value={product.supplierReference} />
-                <InfoItem label={T.qtyInContainer} value={`${product.qtyInContainer.toLocaleString()} units`} />
+                <InfoItem label={T.qtyInContainer} value={`${qty.toLocaleString()} units`} />
+                {totalCbm > 0 && <InfoItem label="CBM Per Unit" value={`${(product.cbmPerUnit || 0).toFixed(3)} m³`} />}
                 <div className="mt-4 pt-4 border-t border-dashed border-gray-300">
                     <h5 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-2">{T.unitEconomics}</h5>
                     <InfoItem label={T.fobCost} value={product.fobCostUnit} isCurrency />
-                    <InfoItem label={T.freightCost} value={freightCostPerUnit} isCurrency />
-                    <InfoItem label={T.destinationCost} value={destinationCostPerUnit} isCurrency />
+                    <InfoItem label={T.freightCost} value={freightAllocatedPerUnit} isCurrency />
+                    <InfoItem label={T.destinationCost} value={destAllocatedPerUnit} isCurrency />
                     <InfoItem label={T.totalUnitCost} value={totalUnitCost} isCurrency valueClass="font-bold text-gray-900" />
                     <InfoItem label={T.salesPrice} value={product.estimatedSalesPrice} isCurrency />
                     <InfoItem label={T.unitSalesMargin} value={unitSalesMargin} isCurrency />
@@ -174,7 +199,7 @@ const BusinessPlan = forwardRef<HTMLDivElement, BusinessPlanProps>(
             );
         }
 
-        if (data.aiSummary.startsWith('Failed to generate')) {
+        if (data.aiSummary && data.aiSummary.startsWith('Failed to generate')) {
             return (
                 <div className="text-center text-sm">
                     <p className="text-danger font-semibold">{data.aiSummary}</p>
@@ -221,7 +246,7 @@ const BusinessPlan = forwardRef<HTMLDivElement, BusinessPlanProps>(
             <div id="bp-page-1">
                 <header className="mb-10 flex justify-between items-start">
                     <div>
-                        {logo && <img src={logo} alt="Company Logo" className="h-12 object-contain mb-4" />}
+                        {logo && <img src={logo} alt="Company Logo" className="h-24 object-contain mb-4" />}
                         <h1 className="text-4xl font-bold text-gray-800">{T.businessPlan}: {data.planName}</h1>
                         <p className="text-gray-500 mt-1">{T.financialProjections}</p>
                     </div>
@@ -250,19 +275,19 @@ const BusinessPlan = forwardRef<HTMLDivElement, BusinessPlanProps>(
                         <div>
                             <h2 className="text-xl font-semibold mb-4 text-gray-700">{T.salesOverview}</h2>
                             <div className="space-y-4">
-                                <OverviewMetricCard title={T.totalSales} value={`$${data.totalSales.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} colorClass="bg-blue-50" />
-                                <OverviewMetricCard title={T.grossProfit} value={`$${data.totalProfit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} colorClass="bg-green-50" />
-                                <OverviewMetricCard title={T.interest} value={`$${data.interest15Percent.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} colorClass="bg-orange-50" />
-                                <OverviewMetricCard title={T.netProfit} value={`$${data.netProfit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} colorClass="bg-teal-50" />
-                                <OverviewMetricCard title={T.netSalesMargin} value={`${data.netSalesMarginPercent.toFixed(2)}%`} colorClass="bg-white" />
+                                <OverviewMetricCard title={T.totalSales} value={`$${(data.totalSales || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} colorClass="bg-blue-50" />
+                                <OverviewMetricCard title={T.grossProfit} value={`$${(data.totalProfit || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} colorClass="bg-green-50" />
+                                <OverviewMetricCard title={T.interest} value={`$${(data.interest15Percent || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} colorClass="bg-orange-50" />
+                                <OverviewMetricCard title={T.netProfit} value={`$${(data.netProfit || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} colorClass="bg-teal-50" />
+                                <OverviewMetricCard title={T.netSalesMargin} value={`${(data.netSalesMarginPercent || 0).toFixed(2)}%`} colorClass="bg-white" />
                             </div>
                         </div>
                         <div>
                             <h2 className="text-xl font-semibold mb-4 text-gray-700">{T.costOverview}</h2>
                             <div className="space-y-4">
-                                <OverviewMetricCard title={T.totalInvestment} value={`$${data.totalInvestment.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} colorClass="bg-red-50" />
-                                <OverviewMetricCard title={T.avgUnitCost} value={`$${data.totalUnitCost.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} colorClass="bg-gray-100" />
-                                <OverviewMetricCard title={T.grossMarkup} value={`${data.grossMarkupPercent.toFixed(2)}%`} colorClass="bg-white" />
+                                <OverviewMetricCard title={T.totalInvestment} value={`$${(data.totalInvestment || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} colorClass="bg-red-50" />
+                                <OverviewMetricCard title={T.avgUnitCost} value={`$${(data.totalUnitCost || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} colorClass="bg-gray-100" />
+                                <OverviewMetricCard title={T.grossMarkup} value={`${(data.grossMarkupPercent || 0).toFixed(2)}%`} colorClass="bg-white" />
                             </div>
                         </div>
                     </div>
@@ -289,7 +314,7 @@ const BusinessPlan = forwardRef<HTMLDivElement, BusinessPlanProps>(
                         <FinancialTable title={T.containerEconomics}>
                             <InfoItem label={T.totalInvestment} value={data.totalInvestment} isCurrency />
                             <InfoItem label={T.totalSales} value={data.totalSales} isCurrency />
-                            <InfoItem label={T.totalProfit} value={data.totalProfit} isCurrency />
+                            <InfoItem label={T.grossProfit} value={data.totalProfit} isCurrency />
                             <InfoItem label={T.interest15} value={data.interest15Percent} isCurrency valueClass="text-danger" />
                             <InfoItem label={T.netProfit} value={data.netProfit} isCurrency valueClass="font-bold text-accent" />
                             <InfoItem label={T.netSalesMargin} value={data.netSalesMarginPercent} isPercent />

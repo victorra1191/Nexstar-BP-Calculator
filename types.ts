@@ -7,6 +7,7 @@ export interface Product {
   fobCostUnit: number;
   estimatedSalesPrice: number;
   productImage: string; // Base64 string
+  cbmPerUnit: number; // Cubic meters per unit for logistics calculation
 }
 
 export interface BusinessPlanData {
