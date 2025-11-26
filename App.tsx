@@ -175,6 +175,25 @@ const App: React.FC = () => {
         }
     };
 
+    const handleLogin = async () => {
+        try {
+            await signInWithGoogle();
+        } catch (error: any) {
+            console.error("Login error:", error);
+            let msg = "Failed to sign in.";
+            if (error.code === 'auth/configuration-not-found') {
+                msg = "Google Sign-In is disabled. Please go to Firebase Console > Authentication > Sign-in method and enable the 'Google' provider.";
+            } else if (error.code === 'auth/unauthorized-domain') {
+                msg = "This domain is not authorized. Please go to Firebase Console > Authentication > Settings > Authorized domains and add this domain.";
+            } else if (error.code === 'auth/popup-closed-by-user') {
+                msg = "Sign-in cancelled.";
+            } else {
+                msg = error.message;
+            }
+            alert(msg);
+        }
+    };
+
     const handleSavePlan = async (planData: Omit<BusinessPlanData, 'id' | 'aiSummary' | 'createdAt' | 'updatedAt'>) => {
         setGeneratingSummaryForPlanId('new');
         const summary = await generateBusinessPlanSummary(planData as BusinessPlanData);
@@ -565,7 +584,7 @@ const App: React.FC = () => {
                     <Logo className="h-20 w-20 mx-auto mb-6 animate-float" />
                     <h1 className="text-3xl font-bold text-primary mb-2">Nexstar Planner</h1>
                     <p className="text-text-secondary mb-8">Sign in to manage your business plans securely in the cloud.</p>
-                    <button onClick={signInWithGoogle} className="w-full bg-white border border-gray-300 text-text-primary font-bold py-3 px-4 rounded-lg hover:bg-gray-50 transition-all flex items-center justify-center space-x-3 shadow-sm hover:shadow-md">
+                    <button onClick={handleLogin} className="w-full bg-white border border-gray-300 text-text-primary font-bold py-3 px-4 rounded-lg hover:bg-gray-50 transition-all flex items-center justify-center space-x-3 shadow-sm hover:shadow-md">
                         <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" className="h-6 w-6" />
                         <span>Sign in with Google</span>
                     </button>

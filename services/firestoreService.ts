@@ -2,12 +2,10 @@ import {
     GoogleAuthProvider, 
     setPersistence, 
     browserLocalPersistence, 
-    signInWithRedirect, 
-    getRedirectResult as firebaseGetRedirectResult, 
+    signInWithPopup, 
     signOut as firebaseSignOut, 
     onAuthStateChanged,
-    User,
-    UserCredential 
+    User
 } from 'firebase/auth';
 import { doc, setDoc, onSnapshot, getDoc } from 'firebase/firestore';
 import { auth, db } from './firebaseConfig';
@@ -80,22 +78,19 @@ export const subscribeToAuthChanges = (callback: (user: User | null) => void): (
 };
 
 /**
- * Signs the user in with Google using a redirect.
+ * Signs the user in with Google using a Popup.
+ * This is preferred over Redirect to avoid configuration-not-found errors on some hosting platforms
+ * and to provide immediate feedback on errors.
  */
-export const signInWithGoogle = (): Promise<void> => {
+export const signInWithGoogle = async (): Promise<void> => {
     const provider = new GoogleAuthProvider();
-    return setPersistence(auth, browserLocalPersistence)
-        .then(() => {
-            return signInWithRedirect(auth, provider);
-        })
-        .catch((error) => {
-            console.error("Error setting auth persistence:", error);
-            return signInWithRedirect(auth, provider);
-        });
-};
-
-export const getRedirectResult = (): Promise<UserCredential | null> => {
-    return firebaseGetRedirectResult(auth);
+    try {
+        await setPersistence(auth, browserLocalPersistence);
+        await signInWithPopup(auth, provider);
+    } catch (error) {
+        console.error("Error signing in with Google:", error);
+        throw error;
+    }
 };
 
 export const signOut = (): Promise<void> => {
