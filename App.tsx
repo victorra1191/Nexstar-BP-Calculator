@@ -5,7 +5,17 @@ import DataInputForm from './components/DataInputForm';
 import SavedPlans from './components/SavedPlans';
 import Logo from './components/Logo';
 import { generateBusinessPlanSummary, translateTextToChinese } from './services/geminiService';
+import { 
+    signInWithGoogle, 
+    signOut, 
+    subscribeToAuthChanges, 
+    saveUserData, 
+    onUserDataSnapshot, 
+    getUserDataOnce,
+    type UserData 
+} from './services/firestoreService';
 import type { BusinessPlanData, ViewType, AppView, ExportHistoryItem } from './types';
+import type { User } from 'firebase/auth';
 
 const fileToBase64 = (file: File): Promise<string> =>
   new Promise((resolve, reject) => {
@@ -48,6 +58,11 @@ const PDFExportButton: React.FC<PDFExportButtonProps> = ({ onClick, isExporting,
 };
 
 const App: React.FC = () => {
+    // Auth State
+    const [user, setUser] = useState<User | null>(null);
+    const [authLoading, setAuthLoading] = useState(true);
+
+    // App Data State
     const [plans, setPlans] = useState<BusinessPlanData[]>([]);
     const [archivedPlans, setArchivedPlans] = useState<BusinessPlanData[]>([]);
     const [appView, setAppView] = useState<AppView>('dashboard');
@@ -59,6 +74,8 @@ const App: React.FC = () => {
     const [formInitialData, setFormInitialData] = useState<BusinessPlanData | undefined>(undefined);
     const [currentPoNumber, setCurrentPoNumber] = useState('');
     const [exportHistory, setExportHistory] = useState<ExportHistoryItem[]>([]);
+    
+    // UI State
     const [isExporting, setIsExporting] = useState(false);
     const [historyModalOpen, setHistoryModalOpen] = useState(false);
     const [historyPdfUrl, setHistoryPdfUrl] = useState<string | null>(null);
@@ -70,13 +87,70 @@ const App: React.FC = () => {
     const businessPlanChineseRef = useRef<HTMLDivElement>(null);
     const purchaseOrderRef = useRef<HTMLDivElement>(null);
 
+    // 1. Initialize Auth and Data Sync
     useEffect(() => {
-        // Load PDF Export libraries dynamically
+        const unsubscribeAuth = subscribeToAuthChanges(async (currentUser) => {
+            setUser(currentUser);
+            
+            if (currentUser) {
+                // User is logged in. Check for migration and subscribe to data.
+                
+                // MIGRATION CHECK:
+                // If user has NO data in Firestore, but HAS data in LocalStorage, migrate it.
+                const cloudData = await getUserDataOnce(currentUser.uid);
+                const localDataString = localStorage.getItem('nexstar_data');
+                
+                if (!cloudData && localDataString) {
+                    try {
+                        const localData = JSON.parse(localDataString);
+                        console.log("Migrating local data to cloud...");
+                        await saveUserData(currentUser.uid, {
+                            plans: localData.plans || [],
+                            archivedPlans: localData.archivedPlans || [],
+                            logo: localData.logo || '',
+                            poCounter: localData.poCounter || 1,
+                            exportHistory: (localData.exportHistory || []).map((h: any) => { const { pdfDataUrl, ...r } = h; return r; }) // Ensure no huge strings
+                        });
+                        // Optional: Clear local storage after successful migration
+                        // localStorage.removeItem('nexstar_data'); 
+                    } catch (e) {
+                        console.error("Migration failed", e);
+                    }
+                }
+
+                // SUBSCRIBE TO FIRESTORE
+                const unsubscribeFirestore = onUserDataSnapshot(currentUser.uid, (data) => {
+                    if (data) {
+                        setPlans(data.plans || []);
+                        setArchivedPlans(data.archivedPlans || []);
+                        setLogo(data.logo || '');
+                        setPoCounter(data.poCounter || 1);
+                        setExportHistory(data.exportHistory || []);
+                    } else {
+                        // New user with no data (and no migration happened)
+                        setPlans([]);
+                        setArchivedPlans([]);
+                        setLogo('');
+                        setPoCounter(1);
+                        setExportHistory([]);
+                    }
+                });
+                
+                setAuthLoading(false);
+                return () => unsubscribeFirestore();
+            } else {
+                // User is logged out.
+                setPlans([]);
+                setArchivedPlans([]);
+                setLogo('');
+                setAuthLoading(false);
+            }
+        });
+
+        // Load PDF Libs
         const loadScript = (src: string): Promise<void> => {
             return new Promise((resolve, reject) => {
-                if (document.querySelector(`script[src="${src}"]`)) {
-                    return resolve();
-                }
+                if (document.querySelector(`script[src="${src}"]`)) return resolve();
                 const script = document.createElement('script');
                 script.src = src;
                 script.onload = () => resolve();
@@ -84,53 +158,21 @@ const App: React.FC = () => {
                 document.head.appendChild(script);
             });
         };
-
         Promise.all([
             loadScript("https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"),
             loadScript("https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js")
-        ]).then(() => {
-            setPdfLibrariesLoaded(true);
-        }).catch(error => {
-            console.error("PDF libraries failed to load:", error);
-        });
+        ]).then(() => setPdfLibrariesLoaded(true));
 
-        // Load Data from LocalStorage
-        const storedData = localStorage.getItem('nexstar_data');
-        if (storedData) {
-            try {
-                const parsed = JSON.parse(storedData);
-                setPlans(parsed.plans || []);
-                setArchivedPlans(parsed.archivedPlans || []);
-                setLogo(parsed.logo || '');
-                setPoCounter(parsed.poCounter || 1);
-                setExportHistory(parsed.exportHistory || []);
-            } catch (err) {
-                console.error("Error loading local data", err);
-            }
-        }
+        return () => unsubscribeAuth();
     }, []);
 
-    const saveToLocalStorage = (updates: Partial<any>) => {
-        const currentString = localStorage.getItem('nexstar_data');
-        const current = currentString ? JSON.parse(currentString) : {};
-        const newData = { 
-            plans, 
-            archivedPlans, 
-            logo, 
-            poCounter, 
-            exportHistory,
-            ...updates 
-        };
-        
-        // Don't save large PDF data URLs to localStorage to avoid quota limits
-        if (newData.exportHistory) {
-            newData.exportHistory = newData.exportHistory.map((item: any) => {
-                 const { pdfDataUrl, ...rest } = item;
-                 return rest;
-            });
+    // Helper to persist data to Firestore if logged in
+    const persistData = (updates: Partial<UserData>) => {
+        if (user) {
+            saveUserData(user.uid, updates);
+        } else {
+            console.warn("User not logged in, cannot save data.");
         }
-
-        localStorage.setItem('nexstar_data', JSON.stringify(newData));
     };
 
     const handleSavePlan = async (planData: Omit<BusinessPlanData, 'id' | 'aiSummary' | 'createdAt' | 'updatedAt'>) => {
@@ -149,8 +191,8 @@ const App: React.FC = () => {
              updatedPlans = [...plans, newPlan];
         }
         
-        setPlans(updatedPlans);
-        saveToLocalStorage({ plans: updatedPlans });
+        setPlans(updatedPlans); // Optimistic update
+        persistData({ plans: updatedPlans });
         setAppView('dashboard');
         setFormInitialData(undefined);
     };
@@ -167,7 +209,7 @@ const App: React.FC = () => {
         const updatedPlans = plans.map(p => p.id === planId ? updatedPlan : p);
         
         setPlans(updatedPlans);
-        saveToLocalStorage({ plans: updatedPlans });
+        persistData({ plans: updatedPlans });
         if (selectedPlan?.id === planId) {
             setSelectedPlan(updatedPlan);
         }
@@ -185,7 +227,7 @@ const App: React.FC = () => {
         const updatedPlans = plans.map(p => p.id === planId ? updatedPlan : p);
 
         setPlans(updatedPlans);
-        saveToLocalStorage({ plans: updatedPlans });
+        persistData({ plans: updatedPlans });
         if (selectedPlan?.id === planId) {
             setSelectedPlan(updatedPlan);
         }
@@ -209,7 +251,7 @@ const App: React.FC = () => {
             const newArchivedPlans = [planToArchive, ...archivedPlans];
             setPlans(newPlans);
             setArchivedPlans(newArchivedPlans);
-            saveToLocalStorage({ plans: newPlans, archivedPlans: newArchivedPlans });
+            persistData({ plans: newPlans, archivedPlans: newArchivedPlans });
         }
     };
     
@@ -220,7 +262,7 @@ const App: React.FC = () => {
             const newPlans = [planToRestore, ...plans];
             setArchivedPlans(newArchivedPlans);
             setPlans(newPlans);
-            saveToLocalStorage({ plans: newPlans, archivedPlans: newArchivedPlans });
+            persistData({ plans: newPlans, archivedPlans: newArchivedPlans });
         }
     };
 
@@ -228,7 +270,7 @@ const App: React.FC = () => {
         if (!window.confirm("This action is permanent and cannot be undone. Are you sure you want to delete this plan forever?")) return;
         const newArchivedPlans = archivedPlans.filter(p => p.id !== planId);
         setArchivedPlans(newArchivedPlans);
-        saveToLocalStorage({ archivedPlans: newArchivedPlans });
+        persistData({ archivedPlans: newArchivedPlans });
     };
     
     const handleEditPlan = (planId: string) => {
@@ -258,7 +300,7 @@ const App: React.FC = () => {
             const file = e.target.files[0];
             const base64 = await fileToBase64(file);
             setLogo(base64);
-            saveToLocalStorage({ logo: base64 });
+            persistData({ logo: base64 });
         }
     };
 
@@ -268,7 +310,7 @@ const App: React.FC = () => {
             const number = `PO-${new Date().getFullYear()}-${String(poCounter).padStart(4, '0')}`;
             setCurrentPoNumber(number);
             setPoCounter(nextPoCounter);
-            saveToLocalStorage({ poCounter: nextPoCounter });
+            persistData({ poCounter: nextPoCounter });
         }
         setActiveReportView(view);
     };
@@ -293,12 +335,11 @@ const App: React.FC = () => {
         const newHistory = [newItem, ...exportHistory];
         setExportHistory(newHistory);
         
-        // We save the history metadata, but NOT the large data URL to local storage
         const historyToSave = newHistory.map(item => {
             const { pdfDataUrl, ...rest } = item;
             return rest;
         });
-        saveToLocalStorage({ exportHistory: historyToSave });
+        persistData({ exportHistory: historyToSave });
     };
 
     const handleViewHistoryItem = (itemId: string) => {
@@ -316,7 +357,7 @@ const App: React.FC = () => {
             const { pdfDataUrl, ...rest } = item;
             return rest;
         });
-        saveToLocalStorage({ exportHistory: historyToSave });
+        persistData({ exportHistory: historyToSave });
     };
 
     const closeHistoryModal = () => {
@@ -324,23 +365,20 @@ const App: React.FC = () => {
         setHistoryPdfUrl(null);
     };
 
+    // Export functions (PDF generation) - Unchanged mostly
     const exportBusinessPlan = async () => {
         const html2canvas = (window as any).html2canvas;
         const jspdfLib = (window as any).jspdf;
-
-        if (!html2canvas || !jspdfLib) { alert("PDF export library not ready. Please wait a moment and try again."); return; }
-        
+        if (!html2canvas || !jspdfLib) { alert("PDF export library not ready."); return; }
         const { jsPDF } = jspdfLib;
         const reportContainer = businessPlanRef.current;
         const reportContainerChinese = businessPlanChineseRef.current;
         if (!reportContainer) return;
-        
         setIsExporting(true);
         const cleanAnimations = (container: HTMLElement) => container.className.replace(/animate-[a-z-]+/g, ' ');
         const originalClassName = reportContainer.className;
         reportContainer.className = cleanAnimations(reportContainer);
         if (reportContainerChinese) reportContainerChinese.className = cleanAnimations(reportContainerChinese);
-
         try {
             const MARGIN = 40;
             const pdf = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
@@ -349,24 +387,23 @@ const App: React.FC = () => {
             const canvasOptions = { scale: 3, useCORS: true, logging: false, backgroundColor: '#ffffff' };
             const page1 = reportContainer.querySelector<HTMLElement>('#bp-page-1');
             const page2 = reportContainer.querySelector<HTMLElement>('#bp-page-2');
-
-            if (!page1 || !page2) { alert('Could not find English page elements for PDF export.'); setIsExporting(false); return; }
-
-            const canvas1 = await html2canvas(page1, canvasOptions);
-            const imgData1 = canvas1.toDataURL('image/png', 1.0);
-            const imgHeight1 = (canvas1.height * contentWidth) / canvas1.width;
-            pdf.addImage(imgData1, 'PNG', MARGIN, MARGIN, contentWidth, imgHeight1);
-
-            pdf.addPage();
-            const canvas2 = await html2canvas(page2, canvasOptions);
-            const imgData2 = canvas2.toDataURL('image/png', 1.0);
-            const imgHeight2 = (canvas2.height * contentWidth) / canvas2.width;
-            pdf.addImage(imgData2, 'PNG', MARGIN, MARGIN, contentWidth, imgHeight2);
-
+            if (page1) {
+                const canvas1 = await html2canvas(page1, canvasOptions);
+                const imgData1 = canvas1.toDataURL('image/png', 1.0);
+                const imgHeight1 = (canvas1.height * contentWidth) / canvas1.width;
+                pdf.addImage(imgData1, 'PNG', MARGIN, MARGIN, contentWidth, imgHeight1);
+            }
+            if (page2) {
+                pdf.addPage();
+                const canvas2 = await html2canvas(page2, canvasOptions);
+                const imgData2 = canvas2.toDataURL('image/png', 1.0);
+                const imgHeight2 = (canvas2.height * contentWidth) / canvas2.width;
+                pdf.addImage(imgData2, 'PNG', MARGIN, MARGIN, contentWidth, imgHeight2);
+            }
             if (reportContainerChinese) {
-                const page1_zh = reportContainerChinese.querySelector<HTMLElement>('#bp-page-1');
-                const page2_zh = reportContainerChinese.querySelector<HTMLElement>('#bp-page-2');
-                if (page1_zh && page2_zh) {
+                 const page1_zh = reportContainerChinese.querySelector<HTMLElement>('#bp-page-1');
+                 const page2_zh = reportContainerChinese.querySelector<HTMLElement>('#bp-page-2');
+                 if (page1_zh && page2_zh) {
                     pdf.addPage();
                     const canvas1_zh = await html2canvas(page1_zh, canvasOptions);
                     const imgData1_zh = canvas1_zh.toDataURL('image/png', 1.0);
@@ -378,33 +415,25 @@ const App: React.FC = () => {
                     const imgData2_zh = canvas2_zh.toDataURL('image/png', 1.0);
                     const imgHeight2_zh = (canvas2_zh.height * contentWidth) / canvas2_zh.width;
                     pdf.addImage(imgData2_zh, 'PNG', MARGIN, MARGIN, contentWidth, imgHeight2_zh);
-                }
+                 }
             }
-            
             const pdfDataUrl = pdf.output('datauristring');
             pdf.save(`Business_Plan_${selectedPlan?.planName}.pdf`);
             await handleAddToHistory('plan', pdfDataUrl);
-        } catch (error) { console.error("Error exporting Business Plan:", error); alert("An error occurred while exporting the Business Plan.");
-        } finally {
-            setIsExporting(false);
-            if (reportContainer) reportContainer.className = originalClassName;
-            if (reportContainerChinese) reportContainerChinese.className = originalClassName;
-        }
+        } catch (error) { console.error("Error exporting Business Plan:", error); alert("Error exporting PDF.");
+        } finally { setIsExporting(false); reportContainer.className = originalClassName; if(reportContainerChinese) reportContainerChinese.className = originalClassName; }
     };
     
     const exportPurchaseOrder = async () => {
         const html2canvas = (window as any).html2canvas;
         const jspdfLib = (window as any).jspdf;
-        if (!html2canvas || !jspdfLib) { alert("PDF export library not ready. Please wait a moment and try again."); return; }
-        
+        if (!html2canvas || !jspdfLib) { alert("PDF library not ready."); return; }
         const { jsPDF } = jspdfLib;
         const input = purchaseOrderRef.current;
         if (!input) return;
-
         setIsExporting(true);
         const originalClassName = input.className;
         input.className = originalClassName.replace(/animate-[a-z-]+/g, ' ');
-
         try {
             const MARGIN = 40; 
             const canvas = await html2canvas(input, { scale: 3, useCORS: true, logging: false, backgroundColor: '#ffffff' });
@@ -414,81 +443,148 @@ const App: React.FC = () => {
             const contentWidth = pdfWidth - MARGIN * 2;
             const imgHeight = (canvas.height * contentWidth) / canvas.width;
             pdf.addImage(imgData, 'PNG', MARGIN, MARGIN, contentWidth, imgHeight);
-
             const pdfDataUrl = pdf.output('datauristring');
             pdf.save(`PO_${selectedPlan?.planName}_${containerCount}c.pdf`);
             await handleAddToHistory('po', pdfDataUrl);
-        } catch (error) { console.error("Error exporting Purchase Order:", error); alert("An error occurred while exporting the Purchase Order.");
-        } finally {
-            setIsExporting(false);
-            if (input) input.className = originalClassName;
-        }
+        } catch (error) { console.error("Error exporting PO:", error); alert("Error exporting PO.");
+        } finally { setIsExporting(false); input.className = originalClassName; }
     };
-    
+
     const renderContent = () => {
-        switch(appView) {
-            case 'dashboard':
-                return <SavedPlans plans={plans} archivedPlans={archivedPlans} history={exportHistory} onSelectPlan={handleSelectPlan} onArchivePlan={handleArchivePlan} onRestorePlan={handleRestorePlan} onDeletePermanently={handleDeletePermanently} onDuplicatePlan={handleDuplicatePlan} onEditPlan={handleEditPlan} onNewPlan={handleNewPlan} onViewHistoryItem={handleViewHistoryItem} onUpdateHistoryStatus={handleUpdateHistoryStatus} />;
-            case 'new_plan':
-                return <DataInputForm onSave={handleSavePlan} onCancel={() => setAppView('dashboard')} initialData={formInitialData} />;
-            case 'view_plan':
-                if (!selectedPlan) return <p>No plan selected.</p>;
-                return (
-                    <div className="animate-fade-in">
-                        <div className="bg-surface p-4 rounded-lg shadow-md mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border border-gray-200">
-                            <div>
-                                <h2 className="text-2xl font-bold text-text-primary">Viewing: <span className="text-primary">{selectedPlan.planName}</span></h2>
-                                <p className="text-text-secondary">Select a report view below to generate or export.</p>
-                            </div>
-                             <div className="bg-secondary p-1 rounded-lg flex space-x-1 self-stretch sm:self-center">
-                                {(['plan', 'po'] as ViewType[]).map(view => (
-                                     <button key={view} onClick={() => handleViewReport(view)} className={`px-4 py-2 text-sm font-medium rounded-md transition-all duration-300 w-full sm:w-auto ${activeReportView === view ? 'bg-primary text-white shadow' : 'text-text-primary hover:bg-white/60'}`}>
-                                        {view === 'plan' ? 'Business Plan' : 'Purchase Order'}
-                                    </button>
-                                ))}
-                            </div>
+        if (appView === 'dashboard') {
+            return (
+                <SavedPlans
+                    plans={plans}
+                    archivedPlans={archivedPlans}
+                    history={exportHistory}
+                    onSelectPlan={handleSelectPlan}
+                    onArchivePlan={handleArchivePlan}
+                    onRestorePlan={handleRestorePlan}
+                    onDeletePermanently={handleDeletePermanently}
+                    onDuplicatePlan={handleDuplicatePlan}
+                    onEditPlan={handleEditPlan}
+                    onNewPlan={handleNewPlan}
+                    onViewHistoryItem={handleViewHistoryItem}
+                    onUpdateHistoryStatus={handleUpdateHistoryStatus}
+                />
+            );
+        }
+
+        if (appView === 'new_plan') {
+            return (
+                <DataInputForm 
+                    onSave={handleSavePlan}
+                    onCancel={() => {
+                        setAppView('dashboard');
+                        setFormInitialData(undefined);
+                    }}
+                    initialData={formInitialData}
+                />
+            );
+        }
+
+        if (appView === 'view_plan' && selectedPlan) {
+            return (
+                <div className="space-y-6">
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-surface p-4 rounded-lg shadow-sm border border-gray-200 gap-4">
+                        <div className="flex space-x-2 bg-gray-100 p-1 rounded-lg">
+                             <button 
+                                onClick={() => handleViewReport('plan')}
+                                className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${activeReportView === 'plan' ? 'bg-white text-primary shadow-sm' : 'text-text-secondary hover:text-text-primary'}`}
+                            >
+                                Business Plan
+                            </button>
+                            <button 
+                                onClick={() => handleViewReport('po')}
+                                className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${activeReportView === 'po' ? 'bg-white text-primary shadow-sm' : 'text-text-secondary hover:text-text-primary'}`}
+                            >
+                                Purchase Order
+                            </button>
                         </div>
 
-                        {activeReportView === 'plan' ? (
-                            <div>
-                                <div className="flex justify-end mb-4 space-x-2">
-                                    <PDFExportButton onClick={exportBusinessPlan} isExporting={isExporting} librariesLoaded={pdfLibrariesLoaded} />
+                         <div className="flex items-center space-x-4 w-full md:w-auto">
+                            {activeReportView === 'po' && (
+                                <div className="flex items-center space-x-2 flex-grow md:flex-grow-0">
+                                    <label htmlFor="container-count" className="text-sm font-medium text-text-secondary whitespace-nowrap">Containers:</label>
+                                    <input 
+                                        id="container-count"
+                                        type="number" 
+                                        min="1" 
+                                        value={containerCount} 
+                                        onChange={(e) => setContainerCount(Math.max(1, parseInt(e.target.value) || 1))}
+                                        className="w-16 px-2 py-1 border border-gray-300 rounded-md text-sm"
+                                    />
                                 </div>
-                                <BusinessPlan ref={businessPlanRef} data={selectedPlan} logo={logo} isGeneratingSummary={generatingSummaryForPlanId === selectedPlan.id} isTranslating={isTranslating} onRetrySummary={() => handleRetrySummary(selectedPlan.id)} onTranslateSummary={() => handleTranslateSummary(selectedPlan.id)} />
-                                {selectedPlan?.aiSummaryChinese && !selectedPlan.aiSummaryChinese.startsWith('Translation failed') && (
-                                    <div style={{ position: 'absolute', left: '-9999px', top: 0, width: '1122px' }}>
-                                        <BusinessPlan ref={businessPlanChineseRef} data={selectedPlan} logo={logo} isGeneratingSummary={false} isTranslating={false} onRetrySummary={() => {}} onTranslateSummary={() => {}} languageOverride="zh" />
-                                    </div>
-                                )}
-                            </div>
+                            )}
+                            
+                            <PDFExportButton 
+                                onClick={activeReportView === 'plan' ? exportBusinessPlan : exportPurchaseOrder}
+                                isExporting={isExporting}
+                                librariesLoaded={pdfLibrariesLoaded}
+                            />
+                        </div>
+                    </div>
+
+                    <div className="overflow-x-auto pb-8">
+                         {activeReportView === 'plan' ? (
+                            <BusinessPlan 
+                                ref={businessPlanRef}
+                                data={selectedPlan}
+                                logo={logo}
+                                isGeneratingSummary={generatingSummaryForPlanId === selectedPlan.id}
+                                isTranslating={isTranslating}
+                                onRetrySummary={() => handleRetrySummary(selectedPlan.id)}
+                                onTranslateSummary={() => handleTranslateSummary(selectedPlan.id)}
+                            />
                         ) : (
-                            <div>
-                                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-4">
-                                    <div className="flex items-center space-x-2">
-                                        <label htmlFor="containers" className="font-bold text-text-primary">Number of Containers:</label>
-                                        <input id="containers" type="number" value={containerCount} onChange={e => setContainerCount(Math.max(1, parseInt(e.target.value, 10)))} min="1" className="p-2 border bg-surface border-gray-300 text-text-primary rounded-md w-24 text-center focus:ring-2 focus:ring-primary focus:border-primary" />
-                                    </div>
-                                    <div className="flex justify-end space-x-2">
-                                        <PDFExportButton onClick={exportPurchaseOrder} isExporting={isExporting} librariesLoaded={pdfLibrariesLoaded} />
-                                    </div>
-                                </div>
-                                <PurchaseOrder ref={purchaseOrderRef} data={selectedPlan} containerCount={containerCount} logo={logo} poNumber={currentPoNumber} />
-                            </div>
+                            <PurchaseOrder 
+                                ref={purchaseOrderRef}
+                                data={selectedPlan}
+                                containerCount={containerCount}
+                                logo={logo}
+                                poNumber={currentPoNumber}
+                            />
                         )}
                     </div>
-                );
-            default:
-                return <p>Loading...</p>;
+                </div>
+            );
         }
+
+        return null;
     };
     
+    // Login Screen
+    if (authLoading) {
+        return <div className="min-h-screen flex items-center justify-center bg-background"><div className="animate-spin h-10 w-10 border-4 border-primary border-t-transparent rounded-full"></div></div>;
+    }
+
+    if (!user) {
+        return (
+            <div className="min-h-screen flex flex-col items-center justify-center bg-background p-4 animate-fade-in">
+                <div className="bg-surface p-8 rounded-xl shadow-2xl max-w-md w-full text-center border border-gray-200">
+                    <Logo className="h-20 w-20 mx-auto mb-6 animate-float" />
+                    <h1 className="text-3xl font-bold text-primary mb-2">Nexstar Planner</h1>
+                    <p className="text-text-secondary mb-8">Sign in to manage your business plans securely in the cloud.</p>
+                    <button onClick={signInWithGoogle} className="w-full bg-white border border-gray-300 text-text-primary font-bold py-3 px-4 rounded-lg hover:bg-gray-50 transition-all flex items-center justify-center space-x-3 shadow-sm hover:shadow-md">
+                        <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" className="h-6 w-6" />
+                        <span>Sign in with Google</span>
+                    </button>
+                    <p className="mt-6 text-xs text-text-secondary/70">
+                        If you have existing local data, it will be automatically migrated to your cloud account upon your first login.
+                    </p>
+                </div>
+            </div>
+        );
+    }
+
+    // Main App
     return (
         <div className="bg-background min-h-screen font-sans text-text-primary">
             <header className="bg-surface/80 backdrop-blur-sm shadow-sm sticky top-0 z-10 border-b border-gray-200">
                 <div className="container mx-auto px-4 sm:px-6 py-3 flex justify-between items-center">
                     <div className="flex items-center space-x-4">
                         <div className="flex items-center space-x-4">
-                             <Logo className="h-10 w-10 animate-float" />
+                             <Logo className="h-10 w-10" />
                              <label htmlFor="logo-upload" className="cursor-pointer text-text-secondary hover:text-primary transition-colors group relative" title="Upload Company Logo">
                                 {logo ? <img src={logo} alt="Logo" className="h-10 w-10 bg-gray-100 p-1 rounded-md object-contain"/> : <div className="h-10 w-10 bg-secondary rounded-md flex items-center justify-center text-primary"><svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg></div>}
                                 <input id="logo-upload" type="file" className="hidden" accept="image/*" onChange={handleLogoUpload} />
@@ -502,6 +598,16 @@ const App: React.FC = () => {
                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" /></svg>
                             </button>
                         )}
+                        <div className="h-8 w-px bg-gray-200 mx-2"></div>
+                        <div className="flex items-center space-x-3">
+                            <span className="text-sm font-medium hidden md:block text-text-secondary">{user.displayName || user.email}</span>
+                            {user.photoURL ? (
+                                <img src={user.photoURL} alt="Profile" className="h-8 w-8 rounded-full border border-gray-300" />
+                            ) : (
+                                <div className="h-8 w-8 rounded-full bg-primary text-white flex items-center justify-center text-xs font-bold">{user.email?.charAt(0).toUpperCase()}</div>
+                            )}
+                            <button onClick={signOut} className="text-xs text-danger hover:underline font-medium">Sign Out</button>
+                        </div>
                     </div>
                 </div>
             </header>
