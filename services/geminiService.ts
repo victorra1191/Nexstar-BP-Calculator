@@ -18,7 +18,7 @@ if (!apiKey) {
 
 export const generateBusinessPlanSummary = async (data: BusinessPlanData): Promise<string> => {
     if (!apiKey) {
-        return "API Key is missing. Please configure VITE_API_KEY in your environment.";
+        return "Failed: API Key is missing. Please configure VITE_API_KEY.";
     }
 
     const productList = data.products.map(p => `- ${p.nexstarModel} (${p.qtyInContainer} units)`).join('\n');
@@ -49,13 +49,25 @@ export const generateBusinessPlanSummary = async (data: BusinessPlanData): Promi
             contents: prompt,
         });
         return response.text || "No summary generated.";
-    } catch (error) {
+    } catch (error: any) {
         console.error("Error generating summary:", error);
-        let errorMessage = "Failed to generate AI summary.";
-        if (error instanceof Error) {
-            errorMessage += ` ${error.message}`;
+        
+        const errorMsg = error.message || String(error);
+
+        // Handle specific Google API errors to provide actionable feedback
+        if (errorMsg.includes('API_KEY_SERVICE_BLOCKED') || errorMsg.includes('GenerativeService.GenerateContent are blocked')) {
+            return "Failed: The 'Generative Language API' is not enabled in Google Cloud Console. Please enable it for your project.";
         }
-        return errorMessage;
+        
+        if (errorMsg.includes('PERMISSION_DENIED') || errorMsg.includes('403')) {
+            return "Failed: Access forbidden. Please check your API Key restrictions/permissions.";
+        }
+        
+        if (errorMsg.includes('429') || errorMsg.includes('quota')) {
+            return "Failed: Quota exceeded. Please try again later.";
+        }
+
+        return "Failed to generate AI summary. Please check console for details.";
     }
 };
 
@@ -83,8 +95,14 @@ export const translateTextToChinese = async (textToTranslate: string): Promise<s
             contents: prompt,
         });
         return response.text || "Translation failed.";
-    } catch (error) {
+    } catch (error: any) {
         console.error("Error translating text:", error);
-        return "Translation failed. Please check your API key and network connection.";
+        const errorMsg = error.message || String(error);
+        
+        if (errorMsg.includes('API_KEY_SERVICE_BLOCKED')) {
+             return "Translation failed: Generative Language API is disabled.";
+        }
+        
+        return "Translation failed. Please try again.";
     }
 };
