@@ -325,12 +325,12 @@ const App: React.FC = () => {
     };
 
     const exportBusinessPlan = async () => {
-        // @ts-ignore
-        const html2canvas = window.html2canvas;
-        // @ts-ignore
-        const { jsPDF } = window.jspdf;
+        const html2canvas = (window as any).html2canvas;
+        const jspdfLib = (window as any).jspdf;
 
-        if (!html2canvas || !jsPDF) { alert("PDF export library not ready. Please wait a moment and try again."); return; }
+        if (!html2canvas || !jspdfLib) { alert("PDF export library not ready. Please wait a moment and try again."); return; }
+        
+        const { jsPDF } = jspdfLib;
         const reportContainer = businessPlanRef.current;
         const reportContainerChinese = businessPlanChineseRef.current;
         if (!reportContainer) return;
@@ -393,11 +393,11 @@ const App: React.FC = () => {
     };
     
     const exportPurchaseOrder = async () => {
-        // @ts-ignore
-        const html2canvas = window.html2canvas;
-        // @ts-ignore
-        const { jsPDF } = window.jspdf;
-        if (!html2canvas || !jsPDF) { alert("PDF export library not ready. Please wait a moment and try again."); return; }
+        const html2canvas = (window as any).html2canvas;
+        const jspdfLib = (window as any).jspdf;
+        if (!html2canvas || !jspdfLib) { alert("PDF export library not ready. Please wait a moment and try again."); return; }
+        
+        const { jsPDF } = jspdfLib;
         const input = purchaseOrderRef.current;
         if (!input) return;
 
@@ -424,7 +424,7 @@ const App: React.FC = () => {
             if (input) input.className = originalClassName;
         }
     };
-
+    
     const renderContent = () => {
         switch(appView) {
             case 'dashboard':

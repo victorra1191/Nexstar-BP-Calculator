@@ -1,19 +1,15 @@
 import { GoogleGenAI } from "@google/genai";
 import type { BusinessPlanData } from '../types';
 
-// Access the API key directly from Vite's standard environment variable system.
-// In Vercel, this must be set as 'VITE_API_KEY' in the project settings.
-// We use optional chaining (?.VITE_API_KEY) to safely access the property, 
-// preventing a "Cannot read properties of undefined" crash if the env object isn't fully ready.
-const apiKey = import.meta.env?.VITE_API_KEY;
+// The API key is injected by vite.config.ts from VITE_API_KEY into process.env.API_KEY
+const apiKey = process.env.API_KEY;
 
-// Prevent crash on initialization if apiKey is missing. 
-// We verify the key inside the functions before making calls.
+// Initialize conditionally to prevent crash if key is missing
 const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
 
 export const generateBusinessPlanSummary = async (data: BusinessPlanData): Promise<string> => {
     if (!ai || !apiKey) {
-        return "Failed: API Key is missing. Please configure VITE_API_KEY in Vercel Environment Variables and Redeploy.";
+        return "Failed: API Key is missing. Please ensure 'VITE_API_KEY' is set in Vercel Environment Variables and Redeploy.";
     }
 
     const productList = data.products.map(p => `- ${p.nexstarModel} (${p.qtyInContainer} units)`).join('\n');
