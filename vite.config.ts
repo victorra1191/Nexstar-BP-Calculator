@@ -7,7 +7,8 @@ export default defineConfig(({ mode }) => {
 
   // The fallback key is your specific Firebase/Google key provided in previous contexts.
   // This ensures that if Vercel's environment variable fails for any reason, the app still works.
-  const FALLBACK_KEY = "AIzaSyACFbjUV1rG0UnB1n1h0UbHdabtS5xdqZ0";
+  // Updated to new key ending in ...Dj48c
+  const FALLBACK_KEY = "AIzaSyBBPymwl4qc4KPUZRBD0dVaXQ5n6iDj48c";
   
   const apiKeyToInject = process.env.VITE_API_KEY || env.VITE_API_KEY || FALLBACK_KEY;
 

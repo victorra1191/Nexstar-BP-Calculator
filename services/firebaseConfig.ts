@@ -6,7 +6,7 @@ import { getFirestore } from 'firebase/firestore';
 // It's a best practice NOT to commit API keys to a public GitHub repository.
 // For Firebase Hosting, this configuration can often be injected automatically at deploy time.
 const firebaseConfig = {
-  apiKey: "AIzaSyACFbjUV1rG0UnB1n1h0UbHdabtS5xdqZ0",
+  apiKey: "AIzaSyBBPymwl4qc4KPUZRBD0dVaXQ5n6iDj48c",
   authDomain: "gen-lang-client-0949923939.firebaseapp.com",
   projectId: "gen-lang-client-0949923939",
   storageBucket: "gen-lang-client-0949923939.appspot.com",

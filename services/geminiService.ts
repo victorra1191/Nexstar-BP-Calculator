@@ -5,7 +5,8 @@ import type { BusinessPlanData } from '../types';
 // We add an extra check for the string "undefined" which can happen during some build processes.
 let apiKey = process.env.API_KEY;
 if (!apiKey || apiKey === "undefined") {
-    apiKey = "AIzaSyACFbjUV1rG0UnB1n1h0UbHdabtS5xdqZ0";
+    // Updated to new key ending in ...Dj48c
+    apiKey = "AIzaSyBBPymwl4qc4KPUZRBD0dVaXQ5n6iDj48c";
 }
 
 // Initialize conditionally to prevent crash if key is somehow missing
