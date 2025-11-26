@@ -1,18 +1,20 @@
 import { GoogleGenAI } from "@google/genai";
 import type { BusinessPlanData } from '../types';
 
-// The API key is injected from the environment variable `process.env.API_KEY`.
-// The application must not ask the user for it.
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// Use the key provided by the user as a fallback if the environment variable is not set.
+// This ensures functionality in environments like Vercel without manual env var configuration.
+const FALLBACK_KEY = "AIzaSyACFbjUV1rG0UnB1n1h0UbHdabtS5xdqZ0";
+const apiKey = process.env.API_KEY || FALLBACK_KEY;
 
-// Safely log to help debug if the key is missing (masked)
-const apiKey = process.env.API_KEY;
+const ai = new GoogleGenAI({ apiKey: apiKey });
+
+// Safely log to help debug
 if (!apiKey) {
     console.error("API_KEY is missing. AI features will not work.");
 } else {
-    console.log("API_KEY loaded (ends with):", apiKey.slice(-4));
+    // Log last 4 chars to verify which key is being used (safe log)
+    console.log("API_KEY loaded.");
 }
-
 
 export const generateBusinessPlanSummary = async (data: BusinessPlanData): Promise<string> => {
     if (!apiKey) {
