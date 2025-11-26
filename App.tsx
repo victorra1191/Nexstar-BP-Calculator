@@ -4,7 +4,7 @@ import PurchaseOrder from './components/PurchaseOrder';
 import DataInputForm from './components/DataInputForm';
 import SavedPlans from './components/SavedPlans';
 import Logo from './components/Logo';
-import { generateBusinessPlanSummary, translateTextToChinese, parseBusinessPlanFromText, parseBusinessPlanFromImages } from './services/geminiService';
+import { generateBusinessPlanSummary, translateTextToChinese } from './services/geminiService';
 import type { BusinessPlanData, ViewType, AppView, ExportHistoryItem } from './types';
 
 const fileToBase64 = (file: File): Promise<string> =>
@@ -14,57 +14,6 @@ const fileToBase64 = (file: File): Promise<string> =>
     reader.onload = () => resolve(reader.result as string);
     reader.onerror = (error) => reject(error);
   });
-
-// Helper function to calculate financial metrics for imported plans
-const calculatePlanMetrics = (raw: any): any => {
-    const products = raw.products || [];
-    const freightTotal = raw.freightTotal || 0;
-    const destinationCostsTotal = raw.destinationCostsTotal || 0;
-    
-    // Ensure products have valid numbers
-    const safeProducts = products.map((p: any) => ({
-        ...p,
-        qtyInContainer: Number(p.qtyInContainer) || 0,
-        fobCostUnit: Number(p.fobCostUnit) || 0,
-        estimatedSalesPrice: Number(p.estimatedSalesPrice) || 0,
-        cbmPerUnit: Number(p.cbmPerUnit) || 0
-    }));
-
-    const totalQty = safeProducts.reduce((sum: number, p: any) => sum + p.qtyInContainer, 0);
-    const totalFobCosts = safeProducts.reduce((sum: number, p: any) => sum + (p.fobCostUnit * p.qtyInContainer), 0);
-    
-    const totalInvestment = totalFobCosts + freightTotal + destinationCostsTotal;
-    const totalSales = safeProducts.reduce((sum: number, p: any) => sum + (p.estimatedSalesPrice * p.qtyInContainer), 0);
-    const totalProfit = totalSales - totalInvestment;
-    
-    const totalUnitCost = totalQty > 0 ? totalInvestment / totalQty : 0;
-    const avgSalesPrice = totalQty > 0 ? totalSales / totalQty : 0;
-    const unitSalesMargin = avgSalesPrice - totalUnitCost;
-
-    const grossSalesMarginPercent = totalSales > 0 ? ((totalSales - totalInvestment) / totalSales) * 100 : 0;
-    const grossMarkupPercent = totalInvestment > 0 ? ((totalSales - totalInvestment) / totalInvestment) * 100 : 0;
-    
-    const interest15Percent = totalInvestment * 0.15;
-    const netProfit = totalProfit - interest15Percent;
-    const netSalesMarginPercent = totalSales > 0 ? (netProfit / totalSales) * 100 : 0;
-    const netMarkupPercent = totalInvestment > 0 ? (netProfit / totalInvestment) * 100 : 0;
-
-    return {
-        ...raw,
-        products: safeProducts,
-        totalUnitCost,
-        unitSalesMargin,
-        totalInvestment,
-        totalSales,
-        totalProfit,
-        grossSalesMarginPercent,
-        grossMarkupPercent,
-        interest15Percent,
-        netProfit,
-        netSalesMarginPercent,
-        netMarkupPercent
-    };
-};
 
 interface PDFExportButtonProps {
     onClick: () => Promise<void>;
@@ -111,7 +60,6 @@ const App: React.FC = () => {
     const [currentPoNumber, setCurrentPoNumber] = useState('');
     const [exportHistory, setExportHistory] = useState<ExportHistoryItem[]>([]);
     const [isExporting, setIsExporting] = useState(false);
-    const [isImportingPdf, setIsImportingPdf] = useState(false);
     const [historyModalOpen, setHistoryModalOpen] = useState(false);
     const [historyPdfUrl, setHistoryPdfUrl] = useState<string | null>(null);
     const [pdfLibrariesLoaded, setPdfLibrariesLoaded] = useState(false);
@@ -123,7 +71,7 @@ const App: React.FC = () => {
     const purchaseOrderRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
-        // Load PDF libraries dynamically
+        // Load PDF Export libraries dynamically
         const loadScript = (src: string): Promise<void> => {
             return new Promise((resolve, reject) => {
                 if (document.querySelector(`script[src="${src}"]`)) {
@@ -139,15 +87,11 @@ const App: React.FC = () => {
 
         Promise.all([
             loadScript("https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"),
-            loadScript("https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"),
-            loadScript("https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js")
+            loadScript("https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js")
         ]).then(() => {
-            // @ts-ignore
-            window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
             setPdfLibrariesLoaded(true);
         }).catch(error => {
             console.error("PDF libraries failed to load:", error);
-            // PDF functionality will be disabled, but app should still work
         });
 
         // Load Data from LocalStorage
@@ -211,101 +155,6 @@ const App: React.FC = () => {
         setFormInitialData(undefined);
     };
     
-    const handleImportFromPdf = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-
-        // @ts-ignore
-        const pdfjsLib = window.pdfjsLib;
-        if (!pdfjsLib) {
-            alert("PDF library is not loaded yet. Please wait a moment.");
-            return;
-        }
-
-        setIsImportingPdf(true);
-        try {
-            const fileReader = new FileReader();
-            fileReader.onload = async (event) => {
-                if (!event.target?.result) return;
-                const typedarray = new Uint8Array(event.target.result as ArrayBuffer);
-                const pdf = await pdfjsLib.getDocument(typedarray).promise;
-                
-                let fullText = '';
-                // First attempt: Extract text from pages
-                const maxPagesToScan = Math.min(pdf.numPages, 5); // Limit to first 5 pages for speed
-                
-                for (let i = 1; i <= maxPagesToScan; i++) {
-                    const page = await pdf.getPage(i);
-                    const textContent = await page.getTextContent();
-                    const pageText = textContent.items.map((item: any) => item.str).join(' ');
-                    fullText += pageText + '\n\n';
-                }
-
-                console.log("Extracted text length:", fullText.length);
-                let parsedJson: string;
-
-                // Decision: Text-based or Image-based?
-                // If text length is very short, it's likely a scanned document (image only).
-                if (fullText.trim().length < 50) {
-                    console.log("Text insufficient. Document appears to be scanned. Switching to visual analysis...");
-                    const images: string[] = [];
-                    
-                    // Render first 3 pages as images for the AI
-                    const maxImages = Math.min(pdf.numPages, 3);
-                    for (let i = 1; i <= maxImages; i++) {
-                        const page = await pdf.getPage(i);
-                        const viewport = page.getViewport({ scale: 1.5 }); // Good quality for OCR
-                        const canvas = document.createElement('canvas');
-                        const context = canvas.getContext('2d');
-                        canvas.height = viewport.height;
-                        canvas.width = viewport.width;
-
-                        if (context) {
-                            await page.render({ canvasContext: context, viewport: viewport }).promise;
-                            // Extract Base64 from canvas (remove data:image/jpeg;base64, prefix)
-                            const base64Img = canvas.toDataURL('image/jpeg', 0.8).split(',')[1];
-                            images.push(base64Img);
-                        }
-                    }
-                    
-                    if (images.length === 0) {
-                        throw new Error("Could not extract images from PDF.");
-                    }
-                    
-                    // Call the image-based parser
-                    parsedJson = await parseBusinessPlanFromImages(images);
-
-                } else {
-                    // Standard text-based parsing
-                    console.log("Text detected. Proceeding with text analysis...");
-                    parsedJson = await parseBusinessPlanFromText(fullText);
-                }
-
-                const parsedData = JSON.parse(parsedJson);
-
-                if (!parsedData.products || parsedData.products.length === 0) {
-                    alert("Imported plan seems to be missing products. Please check the 'Products' section.");
-                }
-
-                // Add missing calculated fields
-                const completeData = calculatePlanMetrics(parsedData);
-
-                // Add missing fields and save
-                await handleSavePlan(completeData);
-                alert(`Successfully imported plan: "${parsedData.planName}"`);
-            };
-            fileReader.readAsArrayBuffer(file);
-        } catch (error) {
-            console.error("Error importing from PDF:", error);
-            alert(`Failed to import from PDF. ${error instanceof Error ? error.message : String(error)}`);
-        } finally {
-            setIsImportingPdf(false);
-             // Reset file input value to allow re-uploading the same file
-            e.target.value = '';
-        }
-    };
-
-
     const handleRetrySummary = async (planId: string) => {
         const planToUpdate = plans.find(p => p.id === planId);
         if (!planToUpdate) return;
@@ -579,7 +428,7 @@ const App: React.FC = () => {
     const renderContent = () => {
         switch(appView) {
             case 'dashboard':
-                return <SavedPlans plans={plans} archivedPlans={archivedPlans} history={exportHistory} onSelectPlan={handleSelectPlan} onArchivePlan={handleArchivePlan} onRestorePlan={handleRestorePlan} onDeletePermanently={handleDeletePermanently} onDuplicatePlan={handleDuplicatePlan} onEditPlan={handleEditPlan} onNewPlan={handleNewPlan} onViewHistoryItem={handleViewHistoryItem} onUpdateHistoryStatus={handleUpdateHistoryStatus} onImportFromPdf={handleImportFromPdf} isImportingPdf={isImportingPdf} pdfLibrariesLoaded={pdfLibrariesLoaded} />;
+                return <SavedPlans plans={plans} archivedPlans={archivedPlans} history={exportHistory} onSelectPlan={handleSelectPlan} onArchivePlan={handleArchivePlan} onRestorePlan={handleRestorePlan} onDeletePermanently={handleDeletePermanently} onDuplicatePlan={handleDuplicatePlan} onEditPlan={handleEditPlan} onNewPlan={handleNewPlan} onViewHistoryItem={handleViewHistoryItem} onUpdateHistoryStatus={handleUpdateHistoryStatus} />;
             case 'new_plan':
                 return <DataInputForm onSave={handleSavePlan} onCancel={() => setAppView('dashboard')} initialData={formInitialData} />;
             case 'view_plan':
