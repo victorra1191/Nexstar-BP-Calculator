@@ -32,6 +32,14 @@ const PurchaseOrder = forwardRef<HTMLDivElement, PurchaseOrderProps>(({ data, co
                     <h1 className="text-4xl font-bold text-primary">PURCHASE ORDER</h1>
                     <p className="text-text-secondary font-mono mt-1">{poNumber}</p>
                     <p className="text-text-secondary font-mono text-base">Date: {new Date().toLocaleDateString('en-US')}</p>
+                    
+                    {/* Floating Card for Container Info */}
+                    <div className="mt-4 inline-block bg-primary/5 border border-primary/20 rounded-md px-4 py-2 text-left">
+                        <p className="text-xs text-primary font-bold uppercase tracking-wider">Logistics / Volume</p>
+                        <p className="text-sm font-semibold text-gray-800">
+                            {containerCount} x {data.containerType || "Container"}
+                        </p>
+                    </div>
                 </div>
             </header>
 
@@ -57,7 +65,7 @@ const PurchaseOrder = forwardRef<HTMLDivElement, PurchaseOrderProps>(({ data, co
                             <tr>
                                 <th className="p-3 font-semibold text-text-secondary uppercase w-2/5">Product</th>
                                 <th className="p-3 text-right font-semibold text-text-secondary uppercase">Qty/Cont.</th>
-                                <th className="p-3 text-right font-semibold text-text-secondary uppercase">Containers</th>
+                                {/* Removed Containers Column */}
                                 <th className="p-3 text-right font-semibold text-text-secondary uppercase">Total Qty</th>
                                 <th className="p-3 text-right font-semibold text-text-secondary uppercase">Unit Price</th>
                                 <th className="p-3 text-right font-semibold text-text-secondary uppercase">Total</th>
@@ -83,7 +91,7 @@ const PurchaseOrder = forwardRef<HTMLDivElement, PurchaseOrderProps>(({ data, co
                                         </div>
                                     </td>
                                     <td className="p-3 text-right text-text-secondary">{qty.toLocaleString()}</td>
-                                    <td className="p-3 text-right text-text-secondary">{containerCount}</td>
+                                    {/* Removed Containers Data Cell */}
                                     <td className="p-3 text-right text-text-secondary">{(qty * containerCount).toLocaleString()}</td>
                                     <td className="p-3 text-right text-text-secondary">${cost.toFixed(2)}</td>
                                     <td className="p-3 text-right font-semibold text-text-primary">${(cost * qty * containerCount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
