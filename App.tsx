@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import BusinessPlan from './components/BusinessPlan';
 import PurchaseOrder from './components/PurchaseOrder';
@@ -17,10 +18,10 @@ import {
     getDownloadURLFromStoragePath,
     type UserData 
 } from './services/firestoreService';
-import type { BusinessPlanData, ViewType, AppView, ExportHistoryItem } from './types';
+import type { BusinessPlanData, ViewType, AppView, ExportHistoryItem, ExportHistoryItemWithUrl } from './types';
 import type { User } from 'firebase/auth';
 
-const APP_VERSION = "v2.2.2"; // Updated version to confirm deployment with Storage integration
+const APP_VERSION = "v2.2.3"; // Updated version to confirm deployment with Storage integration
 
 // Helper to convert File to Base64 (used for preview before upload to storage)
 const fileToBase64 = (file: File): Promise<string> =>
@@ -47,7 +48,7 @@ const PDFExportButton: React.FC<PDFExportButtonProps> = ({ onClick, isExporting,
         }
         return (
             <>
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
                 Download PDF
             </>
         );
@@ -80,7 +81,8 @@ const App: React.FC = () => {
     const [logoStoragePath, setLogoStoragePath] = useState<string | null>(null); // Stores path in Storage (null for empty)
     const [formInitialData, setFormInitialData] = useState<BusinessPlanData | undefined>(undefined);
     const [currentPoNumber, setCurrentPoNumber] = useState('');
-    const [exportHistory, setExportHistory] = useState<ExportHistoryItem[]>([]);
+    // Fix: Updated type to include pdfDataUrl for display purposes
+    const [exportHistory, setExportHistory] = useState<ExportHistoryItemWithUrl[]>([]); 
     
     // UI State
     const [isExporting, setIsExporting] = useState(false);
@@ -166,9 +168,9 @@ const App: React.FC = () => {
                             exportHistory: migratedExportHistory
                         });
                         localStorage.removeItem('nexstar_data'); // Clear local data after successful migration
-                    } catch (e) {
+                    } catch (e: any) {
                         console.error("Migration failed", e);
-                        setSyncError(`Failed to migrate local data to cloud: ${String(e)}`);
+                        setSyncError(`Failed to migrate local data to cloud: ${e.message || 'Unknown error'}`);
                     }
                 }
 
@@ -177,9 +179,16 @@ const App: React.FC = () => {
                     if (data) {
                         // Retrieve logo URL from Storage if path exists
                         if (data.logoStoragePath) {
-                            const url = await getDownloadURLFromStoragePath(data.logoStoragePath);
-                            setLogoUrl(url);
-                            setLogoStoragePath(data.logoStoragePath);
+                            try {
+                                const url = await getDownloadURLFromStoragePath(data.logoStoragePath);
+                                setLogoUrl(url);
+                                setLogoStoragePath(data.logoStoragePath);
+                            } catch (e: any) {
+                                console.warn(`Could not get download URL for logo ${data.logoStoragePath}:`, e);
+                                setSyncError(`Failed to load logo: ${e.message || 'Unknown error'}`);
+                                setLogoUrl('');
+                                setLogoStoragePath(null);
+                            }
                         } else {
                             setLogoUrl('');
                             setLogoStoragePath(null);
@@ -192,8 +201,9 @@ const App: React.FC = () => {
                                     try {
                                         const url = await getDownloadURLFromStoragePath(product.productImage);
                                         return { ...product, productImage: url };
-                                    } catch (e) {
+                                    } catch (e: any) {
                                         console.warn(`Could not get download URL for ${product.productImage} for plan ${plan.id}:`, e);
+                                        setSyncError(`Failed to load image for ${product.nexstarModel}: ${e.message || 'Unknown error'}`);
                                         return { ...product, productImage: '' }; // Fallback to empty if URL fails
                                     }
                                 }
@@ -209,8 +219,9 @@ const App: React.FC = () => {
                                     try {
                                         const url = await getDownloadURLFromStoragePath(product.productImage);
                                         return { ...product, productImage: url };
-                                    } catch (e) {
+                                    } catch (e: any) {
                                         console.warn(`Could not get download URL for archived ${product.productImage} for plan ${plan.id}:`, e);
+                                        setSyncError(`Failed to load archived image for ${product.nexstarModel}: ${e.message || 'Unknown error'}`);
                                         return { ...product, productImage: '' }; // Fallback to empty if URL fails
                                     }
                                 }
@@ -222,13 +233,14 @@ const App: React.FC = () => {
 
                         setPoCounter(data.poCounter || 1);
                         // Fetch PDF URLs for export history
-                        const historyWithUrls = await Promise.all((data.exportHistory || []).map(async item => {
+                        const historyWithUrls: ExportHistoryItemWithUrl[] = await Promise.all((data.exportHistory || []).map(async item => {
                             if (item.pdfStoragePath) {
                                 try {
                                     const url = await getDownloadURLFromStoragePath(item.pdfStoragePath);
                                     return { ...item, pdfDataUrl: url }; // Store public URL for display
-                                } catch (e) {
+                                } catch (e: any) {
                                     console.warn(`Could not get download URL for PDF history item ${item.id}:`, e);
+                                    setSyncError(`Failed to load PDF for history item ${item.id}: ${e.message || 'Unknown error'}`);
                                     return { ...item, pdfDataUrl: null }; // Fallback
                                 }
                             }
@@ -294,6 +306,8 @@ const App: React.FC = () => {
                     setSyncError("Permission Denied: Please update your Firestore Database Rules in Firebase Console to allow writes.");
                 } else if (error.code === 'resource-exhausted') {
                     setSyncError(`Failed to save: Document size exceeds 1MB limit. Remove large images or PDFs. Error: ${error.message}`);
+                } else if (error.code && error.code.startsWith('storage/')) {
+                     setSyncError(`Storage Error: ${error.message || 'Unknown storage error'}. Please check your Firebase Storage Rules.`);
                 }
                 else {
                     // Display the actual error message to help debugging
@@ -436,7 +450,12 @@ const App: React.FC = () => {
             // Delete associated images from Storage
             for (const product of planToDelete.products) {
                 if (product.productImage && !product.productImage.startsWith('http')) { // Check if it's a storage path
-                    await deleteFileFromStorage(product.productImage); // Delete using path
+                    try {
+                        await deleteFileFromStorage(product.productImage); // Delete using path
+                    } catch (error: any) {
+                        console.error(`Error deleting product image ${product.productImage}:`, error);
+                        setSyncError(`Failed to delete product image ${product.nexstarModel}: ${error.message || 'Unknown error'}`);
+                    }
                 }
             }
             
@@ -444,7 +463,12 @@ const App: React.FC = () => {
             const historyItemsToDelete = exportHistory.filter(item => item.planModel === planToDelete.planName && item.pdfStoragePath);
             for (const item of historyItemsToDelete) {
                 if (item.pdfStoragePath) {
-                    await deleteFileFromStorage(item.pdfStoragePath); // Delete using path
+                    try {
+                        await deleteFileFromStorage(item.pdfStoragePath); // Delete using path
+                    } catch (error: any) {
+                        console.error(`Error deleting PDF ${item.pdfStoragePath}:`, error);
+                        setSyncError(`Failed to delete PDF history item ${item.id}: ${error.message || 'Unknown error'}`);
+                    }
                 }
             }
         }
@@ -495,9 +519,9 @@ const App: React.FC = () => {
                 setLogoUrl(downloadUrl); // Store URL
                 setLogoStoragePath(storagePath); // Update the path state
                 await persistData({ logoStoragePath: storagePath }); // Store path in Firestore
-            } catch (error) {
+            } catch (error: any) {
                 console.error("Error uploading logo:", error);
-                alert("Failed to upload logo. Please try again.");
+                setSyncError(`Failed to upload logo: ${error.message || 'Unknown error'}. Please check Storage Rules.`);
             }
         }
     };
@@ -533,13 +557,14 @@ const App: React.FC = () => {
             await uploadFileToStorage(user.uid, fileBlob, storagePath); // Upload PDF to storage
             // No need to get download URL here, just store the path
 
-            const newItem: ExportHistoryItem = {
+            const newItem: ExportHistoryItemWithUrl = { // Use ExportHistoryItemWithUrl for the item being added to state
                 id: `${new Date().toISOString()}-${Math.random()}`,
                 type,
                 planModel: selectedPlan.planName,
                 exportedAt: new Date().toISOString(),
                 status: 'pending',
                 pdfStoragePath: storagePath, // Store path to Storage
+                pdfDataUrl: pdfDataUrl, // Store public URL for display in UI
             };
 
             if (type === 'po') {
@@ -558,9 +583,9 @@ const App: React.FC = () => {
             });
             await persistData({ exportHistory: historyToSave });
 
-        } catch (error) {
+        } catch (error: any) {
             console.error("Error adding to history/uploading PDF:", error);
-            alert("Failed to save PDF to history. Check console for details.");
+            setSyncError(`Failed to save PDF to history: ${error.message || 'Unknown error'}. Please check Storage Rules.`);
         }
     };
 
@@ -571,11 +596,11 @@ const App: React.FC = () => {
                 const url = await getDownloadURLFromStoragePath(item.pdfStoragePath);
                 setHistoryPdfDataUrl(url); // Now this is a public download URL
                 setHistoryModalOpen(true);
-            } catch (error) {
+            } catch (error: any) {
                 console.error("Error retrieving PDF from storage:", error);
-                alert("Failed to retrieve PDF. It might have been deleted or there's a permission issue.");
+                setSyncError(`Failed to retrieve PDF: ${error.message || 'Unknown error'}. It might have been deleted or there's a permission issue.`);
             }
-        } else if (item && !item.pdfStoragePath) {
+        } else if (item && !item.pdfDataUrl) { // No error with ExportHistoryItemWithUrl type
             alert("PDF preview is only available if it was saved to cloud storage.");
         }
     };
@@ -840,7 +865,7 @@ const App: React.FC = () => {
                         <div className="flex items-center space-x-4">
                              <Logo className="h-10 w-10" />
                              <label htmlFor="logo-upload" className="cursor-pointer text-text-secondary hover:text-primary transition-colors group relative" title="Upload Company Logo">
-                                {logoUrl ? <img src={logoUrl} alt="Logo" className="h-10 w-10 bg-gray-100 p-1 rounded-md object-contain"/> : <div className="h-10 w-10 bg-secondary rounded-md flex items-center justify-center text-primary"><svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg></div>}
+                                {logoUrl ? <img src={logoUrl} alt="Logo" className="h-10 w-10 bg-gray-100 p-1 rounded-md object-contain"/> : <div className="h-10 w-10 bg-secondary rounded-md flex items-center justify-center text-primary"><svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg></div>}
                                 <input id="logo-upload" type="file" className="hidden" accept="image/*" onChange={handleLogoUpload} />
                              </label>
                         </div>
@@ -849,7 +874,7 @@ const App: React.FC = () => {
                      <div className="flex items-center space-x-4">
                         {appView !== 'dashboard' && (
                             <button onClick={() => { setAppView('dashboard'); setFormInitialData(undefined); }} className="text-text-secondary hover:bg-secondary p-2 rounded-full text-sm font-medium transition-colors hover:text-primary" aria-label="Back to dashboard">
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 6a2 0 012-2h2a2 0 012 2v2a2 0 01-2 2H6a2 0 01-2-2V6zM14 6a2 0 012-2h2a2 0 012 2v2a2 0 01-2 2h-2a2 0 01-2-2V6zM4 16a2 0 012-2h2a2 0 012 2v2a2 0 01-2 2H6a2 0 01-2-2v-2zM14 16a2 0 012-2h2a2 0 012 2v2a2 0 01-2 2h-2a2 0 01-2-2V6z" /></svg>
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6z" /></svg>
                             </button>
                         )}
                         <div className="h-8 w-px bg-gray-200 mx-2"></div>

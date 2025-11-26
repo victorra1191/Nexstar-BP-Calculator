@@ -1,4 +1,3 @@
-
 import { GoogleGenAI, HarmCategory, HarmBlockThreshold } from "@google/genai";
 import type { BusinessPlanData } from '../types';
 
@@ -65,7 +64,7 @@ export const generateBusinessPlanSummary = async (data: BusinessPlanData): Promi
         }
         
         if (errorMsg.includes('unauthorized domain') || errorMsg.includes('domain restriction')) {
-            return "Failed: Access denied due to domain restrictions. In Google Cloud Console > Credentials > Edit Key > Application Restrictions (Websites), add your Vercel domain (e.g., https://your-app.vercel.app).";
+            return "Failed: Access denied due to domain restrictions. In Google Cloud Console > Credentials > Edit Key > Application Restrictions (Websites), add your Vercel domain (e.g., https://your-app.vercel.app) or temporary 'None' restriction for debugging.";
         }
         
         if (errorMsg.includes('429') || errorMsg.includes('quota')) {
@@ -117,7 +116,7 @@ export const translateTextToChinese = async (textToTranslate: string): Promise<s
         }
 
         if (errorMsg.includes('unauthorized domain') || errorMsg.includes('domain restriction')) {
-            return "Translation failed: Access denied due to domain restrictions. In Google Cloud Console > Credentials > Edit Key > Application Restrictions (Websites), add your Vercel domain (e.g., https://your-app.vercel.app).";
+            return "Translation failed: Access denied due to domain restrictions. In Google Cloud Console > Credentials > Edit Key > Application Restrictions (Websites), add your Vercel domain (e.g., https://your-app.vercel.app) or temporary 'None' restriction for debugging.";
         }
         
         return "Translation failed. Please try again.";

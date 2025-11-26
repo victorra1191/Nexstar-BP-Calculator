@@ -1,4 +1,5 @@
 
+
 export interface Product {
   id: string;
   nexstarModel: string;
@@ -50,6 +51,11 @@ export interface ExportHistoryItem {
   exportedAt: string;
   status: 'pending' | 'approved' | 'disapproved';
   pdfStoragePath?: string; // Path in Firebase Storage where the PDF is stored
+}
+
+// New type for history items in the App's state, including the temporary display URL
+export interface ExportHistoryItemWithUrl extends ExportHistoryItem {
+  pdfDataUrl?: string | null; // Public URL for display, not for persistence
 }
 
 export interface UserData {

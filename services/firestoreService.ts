@@ -1,4 +1,3 @@
-
 import { 
     GoogleAuthProvider, 
     setPersistence, 
@@ -49,18 +48,23 @@ const cleanData = (data: any): any => {
 export const uploadFileToStorage = async (uid: string, fileData: File | Blob, storagePath: string): Promise<string> => {
     if (!uid) throw new Error("User not authenticated for Storage upload.");
 
-    const storageRef = ref(storage, storagePath);
-    let snapshot;
+    try {
+        const storageRef = ref(storage, storagePath);
+        let snapshot;
 
-    if (fileData instanceof File || fileData instanceof Blob) {
-        // Use uploadBytesResumable for better handling of large files and consistency
-        const uploadTask = uploadBytesResumable(storageRef, fileData);
-        snapshot = await uploadTask; // Wait for the upload to complete
-    } else {
-        throw new Error("Unsupported fileData format for upload (expected File or Blob).");
+        if (fileData instanceof File || fileData instanceof Blob) {
+            // Use uploadBytesResumable for better handling of large files and consistency
+            const uploadTask = uploadBytesResumable(storageRef, fileData);
+            snapshot = await uploadTask; // Wait for the upload to complete
+        } else {
+            throw new Error("Unsupported fileData format for upload (expected File or Blob).");
+        }
+        
+        return getDownloadURL(snapshot.ref);
+    } catch (error: any) {
+        console.error(`Error uploading file to Storage at ${storagePath}:`, error);
+        throw new Error(`Storage upload failed: ${error.message || 'Unknown error'}`);
     }
-    
-    return getDownloadURL(snapshot.ref);
 };
 
 /**
@@ -69,8 +73,13 @@ export const uploadFileToStorage = async (uid: string, fileData: File | Blob, st
  * @returns The public download URL.
  */
 export const getDownloadURLFromStoragePath = async (storagePath: string): Promise<string> => {
-    const storageRef = ref(storage, storagePath);
-    return getDownloadURL(storageRef);
+    try {
+        const storageRef = ref(storage, storagePath);
+        return await getDownloadURL(storageRef);
+    } catch (error: any) {
+        console.error(`Error getting download URL for ${storagePath}:`, error);
+        throw new Error(`Failed to retrieve file from storage: ${error.message || 'Unknown error'}`);
+    }
 };
 
 /**
@@ -89,7 +98,7 @@ export const deleteFileFromStorage = async (storagePath: string): Promise<void> 
             console.warn(`Attempted to delete non-existent file from Storage: ${storagePath}`);
         } else {
             console.error(`Error deleting file from Storage ${storagePath}:`, error);
-            throw error;
+            throw new Error(`Failed to delete file from storage: ${error.message || 'Unknown error'}`);
         }
     }
 };
@@ -125,7 +134,7 @@ export const saveUserData = async (uid: string, data: Partial<UserData>): Promis
         }
 
         await setDoc(userDocRef, sanitizedData, { merge: true });
-    } catch (error) {
+    } catch (error: any) {
         console.error("Error saving user data to Firestore:", error);
         throw error;
     }
