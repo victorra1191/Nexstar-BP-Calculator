@@ -1,22 +1,16 @@
 import { GoogleGenAI } from "@google/genai";
 import type { BusinessPlanData } from '../types';
 
-// Declare process to avoid TypeScript errors when accessing process.env.API_KEY
-// The API key must be obtained exclusively from the environment variable process.env.API_KEY.
-declare const process: {
-  env: {
-    API_KEY: string;
-    [key: string]: string | undefined;
-  };
-};
-
-const apiKey = process.env.API_KEY;
+// Use Vite's standard environment variable access.
+// In Vercel, set the environment variable as VITE_API_KEY.
+// We include a fallback to the hardcoded key to ensure functionality if the env var is missing.
+const apiKey = import.meta.env.VITE_API_KEY || "AIzaSyACFbjUV1rG0UnB1n1h0UbHdabtS5xdqZ0";
 
 const ai = new GoogleGenAI({ apiKey });
 
 export const generateBusinessPlanSummary = async (data: BusinessPlanData): Promise<string> => {
     if (!apiKey) {
-        return "Failed: API Key is missing. Please configure API_KEY in your environment.";
+        return "Failed: API Key is missing. Please configure VITE_API_KEY in your environment.";
     }
 
     const productList = data.products.map(p => `- ${p.nexstarModel} (${p.qtyInContainer} units)`).join('\n');
