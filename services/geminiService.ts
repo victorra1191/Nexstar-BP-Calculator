@@ -51,11 +51,11 @@ export const generateBusinessPlanSummary = async (data: BusinessPlanData): Promi
         return response.text || "No summary generated.";
     } catch (error) {
         console.error("Error generating summary:", error);
-        // Provide a more specific error message if it's likely an auth/billing issue.
-        if (error instanceof Error && (error.message.includes('API key not valid') || error.message.includes('billing'))) {
-             return "Failed to generate AI summary. The API key is invalid or billing is not enabled for the project. Please verify your Google Cloud configuration.";
+        let errorMessage = "Failed to generate AI summary.";
+        if (error instanceof Error) {
+            errorMessage += ` ${error.message}`;
         }
-        return "Failed to generate AI summary. Please check your API key and network connection.";
+        return errorMessage;
     }
 };
 

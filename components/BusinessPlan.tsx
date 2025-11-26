@@ -202,9 +202,8 @@ const BusinessPlan = forwardRef<HTMLDivElement, BusinessPlanProps>(
         if (data.aiSummary && data.aiSummary.startsWith('Failed to generate')) {
             return (
                 <div className="text-center text-sm">
-                    <p className="text-danger font-semibold">{data.aiSummary}</p>
-                    <p className="text-gray-500 mt-2">This is often due to billing not being enabled for the Google Cloud project. <a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" rel="noopener noreferrer" className="text-primary underline hover:text-primary-hover font-medium">Learn more</a>.</p>
-                    <button onClick={onRetrySummary} className="mt-4 bg-primary text-white font-bold py-2 px-4 rounded-lg hover:bg-primary-hover transition-colors">
+                    <p className="text-danger font-semibold mb-2">{data.aiSummary}</p>
+                    <button onClick={onRetrySummary} className="bg-primary text-white font-bold py-2 px-4 rounded-lg hover:bg-primary-hover transition-colors">
                         Retry
                     </button>
                 </div>
