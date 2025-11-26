@@ -1,15 +1,16 @@
 import { GoogleGenAI } from "@google/genai";
 import type { BusinessPlanData } from '../types';
 
-// The API key is injected by vite.config.ts from VITE_API_KEY into process.env.API_KEY
-const apiKey = process.env.API_KEY;
+// Access the API key from Vite environment variables (Vercel) OR use the hardcoded fallback.
+// This ensures the app works immediately even if the Vercel variable isn't set yet.
+const apiKey = process.env.API_KEY || "AIzaSyACFbjUV1rG0UnB1n1h0UbHdabtS5xdqZ0";
 
-// Initialize conditionally to prevent crash if key is missing
+// Initialize conditionally to prevent crash if key is somehow missing
 const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
 
 export const generateBusinessPlanSummary = async (data: BusinessPlanData): Promise<string> => {
     if (!ai || !apiKey) {
-        return "Failed: API Key is missing. Please ensure 'VITE_API_KEY' is set in Vercel Environment Variables and Redeploy.";
+        return "Failed: API Key is missing. Please configuration is loading...";
     }
 
     const productList = data.products.map(p => `- ${p.nexstarModel} (${p.qtyInContainer} units)`).join('\n');
@@ -47,11 +48,11 @@ export const generateBusinessPlanSummary = async (data: BusinessPlanData): Promi
 
         // Handle specific Google API errors to provide actionable feedback
         if (errorMsg.includes('API_KEY_SERVICE_BLOCKED') || errorMsg.includes('GenerativeService.GenerateContent are blocked')) {
-            return "Failed: The API Key is valid, but the 'Generative Language API' is disabled in Google Cloud Console. Please enable it for this project.";
+            return "Failed: The API Key 'Browser key' needs permission. Go to Google Cloud Console > Credentials > Edit Key > API Restrictions, and add 'Generative Language API' to the list.";
         }
         
         if (errorMsg.includes('PERMISSION_DENIED') || errorMsg.includes('403')) {
-            return "Failed: Access forbidden. Please check your API Key restrictions in Google Cloud Console.";
+            return "Failed: Access denied. Please check your API Key Restrictions in Google Cloud Console. Ensure 'Generative Language API' is checked.";
         }
         
         if (errorMsg.includes('429') || errorMsg.includes('quota')) {
@@ -90,8 +91,8 @@ export const translateTextToChinese = async (textToTranslate: string): Promise<s
         console.error("Error translating text:", error);
         const errorMsg = error.message || String(error);
         
-        if (errorMsg.includes('API_KEY_SERVICE_BLOCKED')) {
-             return "Translation failed: Generative Language API is disabled.";
+        if (errorMsg.includes('API_KEY_SERVICE_BLOCKED') || errorMsg.includes('PERMISSION_DENIED')) {
+             return "Translation failed: Check API Key Restrictions in Google Cloud.";
         }
         
         return "Translation failed. Please try again.";
