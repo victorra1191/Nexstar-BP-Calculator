@@ -17,7 +17,7 @@ import {
 import type { BusinessPlanData, ViewType, AppView, ExportHistoryItem } from './types';
 import type { User } from 'firebase/auth';
 
-const APP_VERSION = "v1.8"; // Updated version to confirm deployment
+const APP_VERSION = "v1.9"; // Updated version to confirm deployment
 
 const fileToBase64 = (file: File): Promise<string> =>
   new Promise((resolve, reject) => {
@@ -179,7 +179,8 @@ const App: React.FC = () => {
                 if (error.code === 'permission-denied') {
                     setSyncError("Permission Denied: Please update your Firestore Database Rules in Firebase Console to allow writes.");
                 } else {
-                    setSyncError("Failed to save changes to the cloud. Check your internet connection.");
+                    // Display the actual error message to help debugging
+                    setSyncError(`Failed to save: ${error.message || 'Unknown error'}`);
                 }
             }
         } else {
@@ -214,8 +215,9 @@ const App: React.FC = () => {
         const existingPlan = plans.find(p => p.id === formInitialData?.id);
         let updatedPlans;
         
+        // Use null instead of undefined for Firestore compatibility
         if (existingPlan) {
-             const updatedPlan = { ...existingPlan, ...planData, aiSummary: summary, aiSummaryChinese: undefined, updatedAt: new Date().toISOString() };
+             const updatedPlan = { ...existingPlan, ...planData, aiSummary: summary, aiSummaryChinese: null, updatedAt: new Date().toISOString() };
              updatedPlans = plans.map(p => p.id === existingPlan.id ? updatedPlan : p);
         } else {
              const newPlan = { ...planData, id: new Date().toISOString(), aiSummary: summary, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
@@ -236,7 +238,8 @@ const App: React.FC = () => {
         const newSummary = await generateBusinessPlanSummary(planToUpdate);
         setGeneratingSummaryForPlanId(null);
 
-        const updatedPlan = { ...planToUpdate, aiSummary: newSummary, aiSummaryChinese: undefined, updatedAt: new Date().toISOString() };
+        // Use null instead of undefined
+        const updatedPlan = { ...planToUpdate, aiSummary: newSummary, aiSummaryChinese: null, updatedAt: new Date().toISOString() };
         const updatedPlans = plans.map(p => p.id === planId ? updatedPlan : p);
         
         setPlans(updatedPlans);
@@ -612,7 +615,7 @@ const App: React.FC = () => {
     return (
         <div className="bg-background min-h-screen font-sans text-text-primary">
             {syncError && (
-                <div className="bg-red-500 text-white text-center py-2 px-4 text-sm font-bold shadow-md">
+                <div className="bg-red-500 text-white text-center py-2 px-4 text-sm font-bold shadow-md break-words">
                     ⚠️ {syncError}
                 </div>
             )}

@@ -3,7 +3,8 @@ import react from '@vitejs/plugin-react';
 
 export default defineConfig(({ mode }) => {
   // Load env file based on `mode` in the current working directory.
-  const env = loadEnv(mode, process.cwd(), '');
+  // Fix: process.cwd() might trigger TS error if types are missing, casting to any.
+  const env = loadEnv(mode, (process as any).cwd(), '');
 
   // The fallback key is your specific Firebase/Google key provided in previous contexts.
   // This ensures that if Vercel's environment variable fails for any reason, the app still works.

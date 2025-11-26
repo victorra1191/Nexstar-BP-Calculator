@@ -22,13 +22,31 @@ export interface UserData {
 const getUserDocRef = (uid: string) => doc(db, 'users', uid);
 
 /**
+ * Helper function to recursively replace undefined values with null.
+ * Firestore does not support undefined values.
+ */
+const cleanData = (data: any): any => {
+    if (Array.isArray(data)) {
+        return data.map(cleanData);
+    } else if (data !== null && typeof data === 'object') {
+        return Object.entries(data).reduce((acc, [key, value]) => {
+            acc[key] = value === undefined ? null : cleanData(value);
+            return acc;
+        }, {} as any);
+    }
+    return data === undefined ? null : data;
+};
+
+/**
  * Saves or updates a portion of the user's data in Firestore.
  */
 export const saveUserData = async (uid: string, data: Partial<UserData>): Promise<void> => {
     if (!uid) return; // Fail silently if no user, or handle as needed
     try {
         const userDocRef = getUserDocRef(uid);
-        await setDoc(userDocRef, data, { merge: true });
+        // Sanitize data to remove undefined values before sending to Firestore
+        const sanitizedData = cleanData(data);
+        await setDoc(userDocRef, sanitizedData, { merge: true });
     } catch (error) {
         console.error("Error saving user data to Firestore:", error);
         throw error;
@@ -45,7 +63,7 @@ export const getUserDataOnce = async (uid: string): Promise<UserData | null> => 
         return snap.data() as UserData;
     }
     return null;
-}
+};
 
 /**
  * Sets up a real-time listener for the user's data.
