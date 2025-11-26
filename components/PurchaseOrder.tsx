@@ -1,3 +1,4 @@
+
 import React, { forwardRef, useMemo } from 'react';
 import type { BusinessPlanData } from '../types';
 
@@ -11,19 +12,22 @@ interface PurchaseOrderProps {
 const PurchaseOrder = forwardRef<HTMLDivElement, PurchaseOrderProps>(({ data, containerCount, logo, poNumber }, ref) => {
 
     const totals = useMemo(() => {
-        const totalQty = data.products.reduce((acc, p) => acc + (p.qtyInContainer || 0), 0) * containerCount;
-        const totalFobCost = data.products.reduce((acc, p) => acc + ((p.fobCostUnit || 0) * (p.qtyInContainer || 0)), 0) * containerCount;
-        const totalFreight = (data.freightTotal || 0) * containerCount;
+        const totalQty = data.products.reduce((acc, p) => acc + (p.qtyInContainer || 0), 0); // No multiply by containerCount here as it's per container
+        const totalFobCost = data.products.reduce((acc, p) => acc + ((p.fobCostUnit || 0) * (p.qtyInContainer || 0)), 0);
+        
+        // These are already "per container" totals, just multiply by containerCount for the PO
+        const totalFreight = (data.freightTotal || 0) * containerCount; 
         const totalDestinationCost = (data.destinationCostsTotal || 0) * containerCount;
-        const grandTotal = totalFobCost + totalFreight + totalDestinationCost;
-        return { totalQty, totalFobCost, totalFreight, totalDestinationCost, grandTotal };
+        
+        const grandTotal = (totalFobCost * containerCount) + totalFreight + totalDestinationCost; // FOB cost needs to be multiplied by containerCount as well
+        return { totalQty, totalFobCost: totalFobCost * containerCount, totalFreight, totalDestinationCost, grandTotal };
     }, [data, containerCount]);
     
     return (
         <div ref={ref} className="bg-surface text-text-primary p-10 sm:p-12 rounded-lg shadow-2xl font-sans animate-slide-in-up" style={{ fontFamily: 'Arial, sans-serif' }}>
             <header className="flex justify-between items-start pb-6 mb-8 border-b-2 border-gray-200">
                 <div className="flex items-center space-x-6">
-                    {logo ? <img src={logo} alt="Company Logo" className="h-16 object-contain" /> : <div className="h-16 w-32 bg-gray-100 rounded"></div>}
+                    {logo ? <img src={logo} alt="Company Logo" className="h-24 object-contain" /> : <div className="h-24 w-48 bg-gray-100 rounded"></div>}
                     <div>
                         <p className="text-base text-text-secondary">Official Document</p>
                     </div>
@@ -65,7 +69,6 @@ const PurchaseOrder = forwardRef<HTMLDivElement, PurchaseOrderProps>(({ data, co
                             <tr>
                                 <th className="p-3 font-semibold text-text-secondary uppercase w-2/5">Product</th>
                                 <th className="p-3 text-right font-semibold text-text-secondary uppercase">Qty/Cont.</th>
-                                {/* Removed Containers Column */}
                                 <th className="p-3 text-right font-semibold text-text-secondary uppercase">Total Qty</th>
                                 <th className="p-3 text-right font-semibold text-text-secondary uppercase">Unit Price</th>
                                 <th className="p-3 text-right font-semibold text-text-secondary uppercase">Total</th>
@@ -91,7 +94,6 @@ const PurchaseOrder = forwardRef<HTMLDivElement, PurchaseOrderProps>(({ data, co
                                         </div>
                                     </td>
                                     <td className="p-3 text-right text-text-secondary">{qty.toLocaleString()}</td>
-                                    {/* Removed Containers Data Cell */}
                                     <td className="p-3 text-right text-text-secondary">{(qty * containerCount).toLocaleString()}</td>
                                     <td className="p-3 text-right text-text-secondary">${cost.toFixed(2)}</td>
                                     <td className="p-3 text-right font-semibold text-text-primary">${(cost * qty * containerCount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>

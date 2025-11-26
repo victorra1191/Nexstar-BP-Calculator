@@ -1,3 +1,4 @@
+
 import { 
     GoogleAuthProvider, 
     setPersistence, 
@@ -8,15 +9,16 @@ import {
     User
 } from 'firebase/auth';
 import { doc, setDoc, onSnapshot, getDoc } from 'firebase/firestore';
-import { auth, db } from './firebaseConfig';
+import { ref, uploadString, getDownloadURL, deleteObject, uploadBytes } from 'firebase/storage'; // Import Storage functions
+import { auth, db, storage } from './firebaseConfig'; // Import storage instance
 import type { BusinessPlanData, ExportHistoryItem } from '../types';
 
 export interface UserData {
     plans: BusinessPlanData[];
     archivedPlans: BusinessPlanData[];
-    logo: string;
+    logoStoragePath?: string; // Path in Storage for the logo
     poCounter: number;
-    exportHistory: ExportHistoryItem[];
+    exportHistory: Omit<ExportHistoryItem, 'pdfStoragePath'>[]; // pdfDataUrl should not be stored directly here
 }
 
 const getUserDocRef = (uid: string) => doc(db, 'users', uid);
@@ -38,20 +40,99 @@ const cleanData = (data: any): any => {
 };
 
 /**
+ * Uploads a file (base64 string or Blob) to Firebase Storage.
+ * @param uid User ID
+ * @param fileData The base64 string or Blob of the file.
+ * @param storagePath The full path in Firebase Storage (e.g., 'logos/user_abc_logo.png').
+ * @returns The download URL of the uploaded file.
+ */
+export const uploadFileToStorage = async (uid: string, fileData: string | Blob, storagePath: string): Promise<string> => {
+    if (!uid) throw new Error("User not authenticated for Storage upload.");
+
+    const storageRef = ref(storage, storagePath);
+    let snapshot;
+
+    if (typeof fileData === 'string' && fileData.startsWith('data:image')) {
+        // Handle Base64 image
+        snapshot = await uploadString(storageRef, fileData, 'data_url');
+    } else if (fileData instanceof Blob) {
+        // Handle Blob (e.g., from PDF export)
+        snapshot = await uploadBytes(storageRef, fileData);
+    } else {
+        throw new Error("Unsupported fileData format for upload.");
+    }
+    
+    return getDownloadURL(snapshot.ref);
+};
+
+/**
+ * Retrieves the download URL for a file from Firebase Storage path.
+ * @param storagePath The full path in Firebase Storage.
+ * @returns The public download URL.
+ */
+export const getDownloadURLFromStoragePath = async (storagePath: string): Promise<string> => {
+    const storageRef = ref(storage, storagePath);
+    return getDownloadURL(storageRef);
+};
+
+/**
+ * Deletes a file from Firebase Storage.
+ * @param storagePath The full path in Firebase Storage.
+ */
+export const deleteFileFromStorage = async (storagePath: string): Promise<void> => {
+    if (!storagePath) return; // Do nothing if no path
+    try {
+        const storageRef = ref(storage, storagePath);
+        await deleteObject(storageRef);
+        console.log(`File deleted from Storage: ${storagePath}`);
+    } catch (error: any) {
+        // Ignore "object not found" errors, just log others
+        if (error.code === 'storage/object-not-found') {
+            console.warn(`Attempted to delete non-existent file from Storage: ${storagePath}`);
+        } else {
+            console.error(`Error deleting file from Storage ${storagePath}:`, error);
+            throw error;
+        }
+    }
+};
+
+
+/**
  * Saves or updates a portion of the user's data in Firestore.
+ * Handles uploading large files (images/PDFs) to Storage and storing URLs in Firestore.
  */
 export const saveUserData = async (uid: string, data: Partial<UserData>): Promise<void> => {
-    if (!uid) return; // Fail silently if no user, or handle as needed
+    if (!uid) return; 
     try {
         const userDocRef = getUserDocRef(uid);
-        // Sanitize data to remove undefined values before sending to Firestore
-        const sanitizedData = cleanData(data);
+        const sanitizedData = cleanData(data); // Ensure no undefined values
+
+        // If plans or archivedPlans are being updated, ensure productImage is a URL, not base64.
+        if (sanitizedData.plans) {
+            sanitizedData.plans = sanitizedData.plans.map((plan: BusinessPlanData) => ({
+                ...plan,
+                products: plan.products.map(product => {
+                    // product.productImage should already be a URL after upload in App.tsx
+                    return product; 
+                })
+            }));
+        }
+        if (sanitizedData.archivedPlans) {
+            sanitizedData.archivedPlans = sanitizedData.archivedPlans.map((plan: BusinessPlanData) => ({
+                ...plan,
+                products: plan.products.map(product => {
+                    return product;
+                })
+            }));
+        }
+
         await setDoc(userDocRef, sanitizedData, { merge: true });
     } catch (error) {
         console.error("Error saving user data to Firestore:", error);
         throw error;
     }
 };
+
 
 /**
  * Reads user data once (useful for migration checks).
@@ -97,8 +178,6 @@ export const subscribeToAuthChanges = (callback: (user: User | null) => void): (
 
 /**
  * Signs the user in with Google using a Popup.
- * This is preferred over Redirect to avoid configuration-not-found errors on some hosting platforms
- * and to provide immediate feedback on errors.
  */
 export const signInWithGoogle = async (): Promise<void> => {
     const provider = new GoogleAuthProvider();

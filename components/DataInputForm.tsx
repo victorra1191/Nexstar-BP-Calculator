@@ -1,6 +1,9 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import type { BusinessPlanData, Product } from '../types';
 
+// NOTE: This fileToBase64 is now primarily used for immediate PREVIEW purposes in the form
+// The actual upload to Storage happens via onProductImageUpload prop
 const fileToBase64 = (file: File): Promise<string> =>
   new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -17,7 +20,7 @@ const createNewProduct = (): Product => ({
     qtyInContainer: 100,
     fobCostUnit: 10.00,
     estimatedSalesPrice: 20.00,
-    productImage: '',
+    productImage: '', // Will be a URL from Storage
     cbmPerUnit: 0,
 });
 
@@ -38,8 +41,6 @@ const getInitialFormState = (initialData?: BusinessPlanData): Omit<BusinessPlanD
     };
 };
 
-// FIX: Added optional 'name' prop to InputField to pass to the input element.
-// This allows the onChange handlers to correctly identify the field being updated.
 const InputField = ({ label, id, value, onChange, type = 'text', step, required = true, name }: { label: string; id: string; value: string | number; onChange: (e: React.ChangeEvent<HTMLInputElement>) => void; type?: string; step?: string | number; required?: boolean; name?: string; }) => (
     <div>
         <label htmlFor={id} className="block text-sm font-medium text-text-secondary mb-1">{label}</label>
@@ -61,13 +62,21 @@ interface DataInputFormProps {
     onSave: (data: Omit<BusinessPlanData, 'id' | 'aiSummary' | 'createdAt' | 'updatedAt'>) => void;
     onCancel: () => void;
     initialData?: BusinessPlanData;
+    onProductImageUpload: (productId: string, file: File) => Promise<string>; // New prop for image upload
 }
 
-const DataInputForm: React.FC<DataInputFormProps> = ({ onSave, onCancel, initialData }) => {
+const DataInputForm: React.FC<DataInputFormProps> = ({ onSave, onCancel, initialData, onProductImageUpload }) => {
     const [formData, setFormData] = useState(getInitialFormState(initialData));
-    
+    const [previewImageUrls, setPreviewImageUrls] = useState<{ [productId: string]: string }>({}); // For immediate client-side preview
+
     useEffect(() => {
         setFormData(getInitialFormState(initialData));
+        // Reset previews or set from initialData
+        const initialPreviews: { [productId: string]: string } = {};
+        initialData?.products.forEach(p => {
+            if (p.productImage) initialPreviews[p.id] = p.productImage;
+        });
+        setPreviewImageUrls(initialPreviews);
     }, [initialData]);
 
     const calculatedData = useMemo(() => {
@@ -113,14 +122,26 @@ const DataInputForm: React.FC<DataInputFormProps> = ({ onSave, onCancel, initial
         }));
     };
     
-    const handleImageUpload = async (productId: string, e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleImageFileChange = async (productId: string, e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
             const file = e.target.files[0];
-            const base64 = await fileToBase64(file);
-            setFormData(prev => ({
-                ...prev,
-                products: prev.products.map(p => p.id === productId ? { ...p, productImage: base64 } : p)
-            }));
+            
+            // Show immediate preview
+            const previewUrl = await fileToBase64(file);
+            setPreviewImageUrls(prev => ({ ...prev, [productId]: previewUrl }));
+
+            try {
+                // Upload to Firebase Storage
+                const imageUrl = await onProductImageUpload(productId, file);
+                setFormData(prev => ({
+                    ...prev,
+                    products: prev.products.map(p => p.id === productId ? { ...p, productImage: imageUrl } : p)
+                }));
+            } catch (error) {
+                console.error("Error uploading product image:", error);
+                alert("Failed to upload product image. Please try again.");
+                setPreviewImageUrls(prev => ({ ...prev, [productId]: '' })); // Clear preview on error
+            }
         }
     };
     
@@ -186,9 +207,9 @@ const DataInputForm: React.FC<DataInputFormProps> = ({ onSave, onCancel, initial
                                             <label className="block text-sm font-medium text-text-secondary">Product Image</label>
                                             <div className="mt-1 flex items-center space-x-4">
                                                 <div className="w-24 h-24 rounded-md bg-secondary border border-gray-300 flex items-center justify-center">
-                                                    {product.productImage ? <img src={product.productImage} alt="Preview" className="w-full h-full object-cover rounded-md" /> : <span className="text-xs text-text-secondary">Preview</span>}
+                                                    {previewImageUrls[product.id] || product.productImage ? <img src={previewImageUrls[product.id] || product.productImage} alt="Preview" className="w-full h-full object-cover rounded-md" /> : <span className="text-xs text-text-secondary">Preview</span>}
                                                 </div>
-                                                <input type="file" onChange={(e) => handleImageUpload(product.id, e)} accept="image/*" className="block w-full text-sm text-text-secondary file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20"/>
+                                                <input type="file" onChange={(e) => handleImageFileChange(product.id, e)} accept="image/*" className="block w-full text-sm text-text-secondary file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20"/>
                                             </div>
                                         </div>
                                     </div>

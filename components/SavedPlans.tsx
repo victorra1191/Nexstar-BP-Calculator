@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import type { BusinessPlanData, ExportHistoryItem } from '../types';
 
@@ -14,6 +15,7 @@ interface SavedPlansProps {
     onNewPlan: () => void;
     onViewHistoryItem: (id: string) => void;
     onUpdateHistoryStatus: (id: string, status: 'approved' | 'disapproved') => void;
+    logoUrl: string; // Pass logoUrl from App for potential display/context
 }
 
 const PlusIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>;
@@ -27,7 +29,7 @@ const ApproveIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-5
 const DisapproveIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>;
 
 
-const SavedPlans: React.FC<SavedPlansProps> = ({ plans, archivedPlans, history, onSelectPlan, onArchivePlan, onRestorePlan, onDeletePermanently, onDuplicatePlan, onEditPlan, onNewPlan, onViewHistoryItem, onUpdateHistoryStatus }) => {
+const SavedPlans: React.FC<SavedPlansProps> = ({ plans, archivedPlans, history, onSelectPlan, onArchivePlan, onRestorePlan, onDeletePermanently, onDuplicatePlan, onEditPlan, onNewPlan, onViewHistoryItem, onUpdateHistoryStatus, logoUrl }) => {
     const [archivingId, setArchivingId] = useState<string | null>(null);
 
     const handleArchiveClick = (e: React.MouseEvent, planId: string) => {
@@ -176,8 +178,8 @@ const SavedPlans: React.FC<SavedPlansProps> = ({ plans, archivedPlans, history, 
                                      <button 
                                         onClick={() => onViewHistoryItem(item.id)} 
                                         className="text-sm bg-secondary text-text-primary font-semibold py-1.5 px-4 rounded-lg hover:bg-gray-300 transition-colors disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed"
-                                        disabled={!item.pdfDataUrl}
-                                        title={!item.pdfDataUrl ? "PDF preview is only available for the current session" : "View PDF"}
+                                        disabled={!item.pdfStoragePath}
+                                        title={!item.pdfStoragePath ? "PDF preview is only available for the current session" : "View PDF"}
                                      >
                                         View PDF
                                     </button>

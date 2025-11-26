@@ -1,3 +1,4 @@
+
 import React from 'react';
 
 const Logo: React.FC<{ className?: string }> = ({ className = 'h-10 w-10' }) => {

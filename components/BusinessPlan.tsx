@@ -1,3 +1,4 @@
+
 import React, { forwardRef, useState } from 'react';
 import type { BusinessPlanData, Product } from '../types';
 
@@ -223,7 +224,18 @@ const BusinessPlan = forwardRef<HTMLDivElement, BusinessPlanProps>(
                 );
             }
             if (data.aiSummaryChinese && !data.aiSummaryChinese.startsWith('Translation failed')) {
-                return <p className="text-gray-600 leading-relaxed text-base font-sans">{data.aiSummaryChinese}</p>;
+                return <p className="text-gray-600 leading-relaxed text-base font-sans break-words">{data.aiSummaryChinese}</p>;
+            }
+            // Display translation error if it exists, otherwise the 'No Chinese translation' message
+            if (data.aiSummaryChinese && data.aiSummaryChinese.startsWith('Translation failed')) {
+                 return (
+                    <div className="text-center text-sm">
+                        <p className="text-danger font-semibold mb-2 break-words">{data.aiSummaryChinese}</p>
+                        <button onClick={onTranslateSummary} className="bg-primary text-white font-bold py-2 px-4 rounded-lg hover:bg-primary-hover transition-colors">
+                            Retry
+                        </button>
+                    </div>
+                 );
             }
             return (
                 <div className="text-center">
@@ -235,7 +247,7 @@ const BusinessPlan = forwardRef<HTMLDivElement, BusinessPlanProps>(
             );
         }
 
-        return <p className="text-gray-600 leading-relaxed text-base">{data.aiSummary || "No summary available."}</p>;
+        return <p className="text-gray-600 leading-relaxed text-base break-words">{data.aiSummary || "No summary available."}</p>;
     };
 
 

@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import BusinessPlan from './components/BusinessPlan';
 import PurchaseOrder from './components/PurchaseOrder';
@@ -12,13 +13,17 @@ import {
     saveUserData, 
     onUserDataSnapshot, 
     getUserDataOnce,
+    uploadFileToStorage,
+    deleteFileFromStorage,
+    getDownloadURLFromStoragePath,
     type UserData 
 } from './services/firestoreService';
 import type { BusinessPlanData, ViewType, AppView, ExportHistoryItem } from './types';
 import type { User } from 'firebase/auth';
 
-const APP_VERSION = "v1.9"; // Updated version to confirm deployment
+const APP_VERSION = "v2.0"; // Updated version to confirm deployment with Storage integration
 
+// Helper to convert File to Base64 (used for preview before upload to storage)
 const fileToBase64 = (file: File): Promise<string> =>
   new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -72,7 +77,7 @@ const App: React.FC = () => {
     const [activeReportView, setActiveReportView] = useState<ViewType>('plan');
     const [containerCount, setContainerCount] = useState(1);
     const [poCounter, setPoCounter] = useState(1);
-    const [logo, setLogo] = useState('');
+    const [logoUrl, setLogoUrl] = useState(''); // Stores URL from Storage
     const [formInitialData, setFormInitialData] = useState<BusinessPlanData | undefined>(undefined);
     const [currentPoNumber, setCurrentPoNumber] = useState('');
     const [exportHistory, setExportHistory] = useState<ExportHistoryItem[]>([]);
@@ -80,7 +85,7 @@ const App: React.FC = () => {
     // UI State
     const [isExporting, setIsExporting] = useState(false);
     const [historyModalOpen, setHistoryModalOpen] = useState(false);
-    const [historyPdfUrl, setHistoryPdfUrl] = useState<string | null>(null);
+    const [historyPdfDataUrl, setHistoryPdfDataUrl] = useState<string | null>(null); // For displaying in modal (base64)
     const [pdfLibrariesLoaded, setPdfLibrariesLoaded] = useState(false);
     const [generatingSummaryForPlanId, setGeneratingSummaryForPlanId] = useState<string | null>(null);
     const [isTranslating, setIsTranslating] = useState(false);
@@ -107,13 +112,28 @@ const App: React.FC = () => {
                     try {
                         const localData = JSON.parse(localDataString);
                         console.log("Migrating local data to cloud...");
+
+                        // Handle logo migration (if present in local storage)
+                        let migratedLogoStoragePath: string | undefined = undefined;
+                        if (localData.logo && currentUser) {
+                            migratedLogoStoragePath = await uploadFileToStorage(currentUser.uid, localData.logo, `logos/user_${currentUser.uid}_logo`);
+                        }
+
+                        // Adjust exportHistory to remove pdfDataUrl before saving to cloud
+                        const migratedExportHistory = (localData.exportHistory || []).map((item: any) => {
+                            // Ensure pdfDataUrl is NOT stored directly in Firestore document
+                            const { pdfDataUrl, ...rest } = item; 
+                            return rest;
+                        });
+
                         await saveUserData(currentUser.uid, {
                             plans: localData.plans || [],
                             archivedPlans: localData.archivedPlans || [],
-                            logo: localData.logo || '',
+                            logoStoragePath: migratedLogoStoragePath, // Store URL/path from Storage
                             poCounter: localData.poCounter || 1,
-                            exportHistory: (localData.exportHistory || []).map((h: any) => { const { pdfDataUrl, ...r } = h; return r; }) 
+                            exportHistory: migratedExportHistory
                         });
+                        localStorage.removeItem('nexstar_data'); // Clear local data after successful migration
                     } catch (e) {
                         console.error("Migration failed", e);
                         setSyncError("Failed to migrate local data to cloud.");
@@ -121,18 +141,45 @@ const App: React.FC = () => {
                 }
 
                 // SUBSCRIBE TO FIRESTORE
-                const unsubscribeFirestore = onUserDataSnapshot(currentUser.uid, (data) => {
+                const unsubscribeFirestore = onUserDataSnapshot(currentUser.uid, async (data) => {
                     if (data) {
                         setPlans(data.plans || []);
                         setArchivedPlans(data.archivedPlans || []);
-                        setLogo(data.logo || '');
                         setPoCounter(data.poCounter || 1);
                         setExportHistory(data.exportHistory || []);
+
+                        // Retrieve logo URL from Storage if path exists
+                        if (data.logoStoragePath) {
+                            const url = await getDownloadURLFromStoragePath(data.logoStoragePath);
+                            setLogoUrl(url);
+                        } else {
+                            setLogoUrl('');
+                        }
+
+                        // Pre-fetch product image URLs for plans
+                        const plansWithImages = await Promise.all((data.plans || []).map(async plan => {
+                            const productsWithImages = await Promise.all(plan.products.map(async product => {
+                                if (product.productImage && !product.productImage.startsWith('http')) { // If it's a storage path
+                                    try {
+                                        const url = await getDownloadURLFromStoragePath(product.productImage);
+                                        return { ...product, productImage: url };
+                                    } catch (e) {
+                                        console.warn(`Could not get download URL for ${product.productImage}`, e);
+                                        return { ...product, productImage: '' }; // Fallback to empty if URL fails
+                                    }
+                                }
+                                return product;
+                            }));
+                            return { ...plan, products: productsWithImages };
+                        }));
+                        setPlans(plansWithImages);
+
+
                     } else {
                         // New user with no data
                         setPlans([]);
                         setArchivedPlans([]);
-                        setLogo('');
+                        setLogoUrl('');
                         setPoCounter(1);
                         setExportHistory([]);
                     }
@@ -144,7 +191,7 @@ const App: React.FC = () => {
                 // User is logged out.
                 setPlans([]);
                 setArchivedPlans([]);
-                setLogo('');
+                setLogoUrl('');
                 setAuthLoading(false);
             }
         });
@@ -166,7 +213,7 @@ const App: React.FC = () => {
         ]).then(() => setPdfLibrariesLoaded(true));
 
         return () => unsubscribeAuth();
-    }, []);
+    }, [user?.uid]); // Re-run effect if user UID changes for proper subscription/migration
 
     // Helper to persist data to Firestore if logged in
     const persistData = async (updates: Partial<UserData>) => {
@@ -178,13 +225,17 @@ const App: React.FC = () => {
                 console.error("Sync Error:", error);
                 if (error.code === 'permission-denied') {
                     setSyncError("Permission Denied: Please update your Firestore Database Rules in Firebase Console to allow writes.");
-                } else {
+                } else if (error.code === 'resource-exhausted') {
+                    setSyncError(`Failed to save: Document size exceeds 1MB limit. Remove large images or PDFs. Error: ${error.message}`);
+                }
+                else {
                     // Display the actual error message to help debugging
                     setSyncError(`Failed to save: ${error.message || 'Unknown error'}`);
                 }
             }
         } else {
             console.warn("User not logged in, cannot save data.");
+            setSyncError("Not logged in. Data not saved to cloud.");
         }
     };
 
@@ -208,24 +259,30 @@ const App: React.FC = () => {
     };
 
     const handleSavePlan = async (planData: Omit<BusinessPlanData, 'id' | 'aiSummary' | 'createdAt' | 'updatedAt'>) => {
+        if (!user) {
+            alert("Please sign in to save plans.");
+            return;
+        }
+        
         setGeneratingSummaryForPlanId('new');
         const summary = await generateBusinessPlanSummary(planData as BusinessPlanData);
         setGeneratingSummaryForPlanId(null);
         
         const existingPlan = plans.find(p => p.id === formInitialData?.id);
-        let updatedPlans;
+        let updatedPlans: BusinessPlanData[];
+        let planToSave: BusinessPlanData;
         
         // Use null instead of undefined for Firestore compatibility
         if (existingPlan) {
-             const updatedPlan = { ...existingPlan, ...planData, aiSummary: summary, aiSummaryChinese: null, updatedAt: new Date().toISOString() };
-             updatedPlans = plans.map(p => p.id === existingPlan.id ? updatedPlan : p);
+             planToSave = { ...existingPlan, ...planData, aiSummary: summary, aiSummaryChinese: null, updatedAt: new Date().toISOString() };
+             updatedPlans = plans.map(p => p.id === existingPlan.id ? planToSave : p);
         } else {
-             const newPlan = { ...planData, id: new Date().toISOString(), aiSummary: summary, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
-             updatedPlans = [...plans, newPlan];
+             planToSave = { ...planData, id: new Date().toISOString(), aiSummary: summary, aiSummaryChinese: null, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+             updatedPlans = [...plans, planToSave];
         }
         
         setPlans(updatedPlans); // Optimistic update
-        persistData({ plans: updatedPlans });
+        await persistData({ plans: updatedPlans });
         setAppView('dashboard');
         setFormInitialData(undefined);
     };
@@ -243,7 +300,7 @@ const App: React.FC = () => {
         const updatedPlans = plans.map(p => p.id === planId ? updatedPlan : p);
         
         setPlans(updatedPlans);
-        persistData({ plans: updatedPlans });
+        await persistData({ plans: updatedPlans });
         if (selectedPlan?.id === planId) {
             setSelectedPlan(updatedPlan);
         }
@@ -261,7 +318,7 @@ const App: React.FC = () => {
         const updatedPlans = plans.map(p => p.id === planId ? updatedPlan : p);
 
         setPlans(updatedPlans);
-        persistData({ plans: updatedPlans });
+        await persistData({ plans: updatedPlans });
         if (selectedPlan?.id === planId) {
             setSelectedPlan(updatedPlan);
         }
@@ -278,33 +335,56 @@ const App: React.FC = () => {
         }
     };
     
-    const handleArchivePlan = (planId: string) => {
+    const handleArchivePlan = async (planId: string) => {
         const planToArchive = plans.find(p => p.id === planId);
         if (planToArchive) {
             const newPlans = plans.filter(p => p.id !== planId);
             const newArchivedPlans = [planToArchive, ...archivedPlans];
             setPlans(newPlans);
             setArchivedPlans(newArchivedPlans);
-            persistData({ plans: newPlans, archivedPlans: newArchivedPlans });
+            await persistData({ plans: newPlans, archivedPlans: newArchivedPlans });
         }
     };
     
-    const handleRestorePlan = (planId: string) => {
+    const handleRestorePlan = async (planId: string) => {
         const planToRestore = archivedPlans.find(p => p.id === planId);
         if (planToRestore) {
             const newArchivedPlans = archivedPlans.filter(p => p.id !== planId);
             const newPlans = [planToRestore, ...plans];
             setArchivedPlans(newArchivedPlans);
             setPlans(newPlans);
-            persistData({ plans: newPlans, archivedPlans: newArchivedPlans });
+            await persistData({ plans: newPlans, archivedPlans: newArchivedPlans });
         }
     };
 
-    const handleDeletePermanently = (planId: string) => {
-        if (!window.confirm("This action is permanent and cannot be undone. Are you sure you want to delete this plan forever?")) return;
+    const handleDeletePermanently = async (planId: string) => {
+        if (!user) {
+            alert("You must be signed in to delete files from cloud storage permanently.");
+            return;
+        }
+        if (!window.confirm("This action is permanent and cannot be undone. Are you sure you want to delete this plan forever? All associated images and PDFs will also be deleted from storage.")) return;
+        
+        const planToDelete = archivedPlans.find(p => p.id === planId);
+        if (planToDelete) {
+            // Delete associated images from Storage
+            for (const product of planToDelete.products) {
+                if (product.productImage && !product.productImage.startsWith('http')) { // Check if it's a storage path
+                    await deleteFileFromStorage(product.productImage);
+                }
+            }
+            
+            // Delete associated PDFs from Storage
+            const historyItemsToDelete = exportHistory.filter(item => item.planModel === planToDelete.planName && item.pdfStoragePath);
+            for (const item of historyItemsToDelete) {
+                if (item.pdfStoragePath) {
+                    await deleteFileFromStorage(item.pdfStoragePath);
+                }
+            }
+        }
+
         const newArchivedPlans = archivedPlans.filter(p => p.id !== planId);
         setArchivedPlans(newArchivedPlans);
-        persistData({ archivedPlans: newArchivedPlans });
+        await persistData({ archivedPlans: newArchivedPlans });
     };
     
     const handleEditPlan = (planId: string) => {
@@ -318,7 +398,13 @@ const App: React.FC = () => {
     const handleDuplicatePlan = (planId: string) => {
         const planToDuplicate = plans.find(p => p.id === planId);
         if (planToDuplicate) {
-            const duplicatedData = { ...planToDuplicate, id: '', planName: `${planToDuplicate.planName} (Copy)` };
+            // Ensure duplicated plan gets new IDs and storage paths for images if any
+            const duplicatedProducts = planToDuplicate.products.map(p => ({
+                ...p,
+                id: `product_${new Date().getTime()}_${Math.random()}_copy`,
+                // productImage will reference same Storage URL for now, could be re-uploaded if needed
+            }));
+            const duplicatedData = { ...planToDuplicate, id: '', planName: `${planToDuplicate.planName} (Copy)`, products: duplicatedProducts };
             setFormInitialData(duplicatedData);
             setAppView('new_plan');
         }
@@ -330,13 +416,34 @@ const App: React.FC = () => {
     }
 
     const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (!user) {
+            alert("Please sign in to upload a logo to cloud storage.");
+            return;
+        }
         if (e.target.files && e.target.files[0]) {
             const file = e.target.files[0];
-            const base64 = await fileToBase64(file);
-            setLogo(base64);
-            persistData({ logo: base64 });
+            const storagePath = `logos/user_${user.uid}_logo_${file.name}`; // Unique path for logo
+            try {
+                const downloadUrl = await uploadFileToStorage(user.uid, file, storagePath);
+                setLogoUrl(downloadUrl); // Store URL
+                await persistData({ logoStoragePath: storagePath }); // Store path in Firestore
+            } catch (error) {
+                console.error("Error uploading logo:", error);
+                alert("Failed to upload logo. Please try again.");
+            }
         }
     };
+    
+    // This handler will be passed to DataInputForm for product image uploads
+    const handleProductImageUpload = async (productId: string, file: File): Promise<string> => {
+        if (!user) {
+            throw new Error("User not signed in. Cannot upload product image.");
+        }
+        const storagePath = `product_images/user_${user.uid}_${productId}_${file.name}`;
+        const downloadUrl = await uploadFileToStorage(user.uid, file, storagePath);
+        return downloadUrl; // Return the URL to be stored in product data
+    };
+
 
     const handleViewReport = (view: ViewType) => {
         if (view === 'po' && activeReportView !== 'po') {
@@ -350,53 +457,72 @@ const App: React.FC = () => {
     };
 
     const handleAddToHistory = async (type: ViewType, pdfDataUrl: string) => {
-        if (!selectedPlan) return;
+        if (!user || !selectedPlan) return;
         
-        const newItem: ExportHistoryItem = {
-            id: `${new Date().toISOString()}-${Math.random()}`,
-            type,
-            planModel: selectedPlan.planName,
-            exportedAt: new Date().toISOString(),
-            status: 'pending',
-            pdfDataUrl: pdfDataUrl,
-        };
+        const storagePath = `pdf_exports/user_${user.uid}_${selectedPlan.id}_${type}_${new Date().getTime()}.pdf`;
+        try {
+            const fileBlob = await fetch(pdfDataUrl).then(res => res.blob());
+            const downloadUrl = await uploadFileToStorage(user.uid, fileBlob, storagePath); // Upload PDF to storage
 
-        if (type === 'po') {
-            newItem.poNumber = currentPoNumber;
-            newItem.containerCount = containerCount;
+            const newItem: ExportHistoryItem = {
+                id: `${new Date().toISOString()}-${Math.random()}`,
+                type,
+                planModel: selectedPlan.planName,
+                exportedAt: new Date().toISOString(),
+                status: 'pending',
+                pdfStoragePath: storagePath, // Store path to Storage
+            };
+
+            if (type === 'po') {
+                newItem.poNumber = currentPoNumber;
+                newItem.containerCount = containerCount;
+            }
+
+            const newHistory = [newItem, ...exportHistory];
+            setExportHistory(newHistory);
+            
+            // Only store item properties relevant to Firestore, exclude large data like pdfDataUrl
+            const historyToSave = newHistory.map(item => {
+                const { pdfStoragePath, ...rest } = item;
+                return { ...rest, pdfStoragePath: item.pdfStoragePath || null }; // Store path, not data url
+            });
+            await persistData({ exportHistory: historyToSave });
+
+        } catch (error) {
+            console.error("Error adding to history/uploading PDF:", error);
+            alert("Failed to save PDF to history. Check console for details.");
         }
-
-        const newHistory = [newItem, ...exportHistory];
-        setExportHistory(newHistory);
-        
-        const historyToSave = newHistory.map(item => {
-            const { pdfDataUrl, ...rest } = item;
-            return rest;
-        });
-        persistData({ exportHistory: historyToSave });
     };
 
-    const handleViewHistoryItem = (itemId: string) => {
+    const handleViewHistoryItem = async (itemId: string) => {
         const item = exportHistory.find(h => h.id === itemId);
-        if (item && item.pdfDataUrl) {
-            setHistoryPdfUrl(item.pdfDataUrl);
-            setHistoryModalOpen(true);
+        if (item && item.pdfStoragePath && user) {
+            try {
+                const url = await getDownloadURLFromStoragePath(item.pdfStoragePath);
+                setHistoryPdfDataUrl(url); // Now this is a public download URL
+                setHistoryModalOpen(true);
+            } catch (error) {
+                console.error("Error retrieving PDF from storage:", error);
+                alert("Failed to retrieve PDF. It might have been deleted or there's a permission issue.");
+            }
+        } else if (item && !item.pdfStoragePath) {
+            alert("PDF preview is only available if it was saved to cloud storage.");
         }
     };
 
-    const handleUpdateHistoryStatus = (itemId: string, status: 'approved' | 'disapproved') => {
+    const handleUpdateHistoryStatus = async (itemId: string, status: 'approved' | 'disapproved') => {
         const newHistory = exportHistory.map(item => item.id === itemId ? { ...item, status } : item);
         setExportHistory(newHistory);
         const historyToSave = newHistory.map(item => {
-            const { pdfDataUrl, ...rest } = item;
-            return rest;
+            const { pdfStoragePath, ...rest } = item;
+            return { ...rest, pdfStoragePath: item.pdfStoragePath || null };
         });
-        persistData({ exportHistory: historyToSave });
+        await persistData({ exportHistory: historyToSave });
     };
 
     const closeHistoryModal = () => {
         setHistoryModalOpen(false);
-        setHistoryPdfUrl(null);
+        setHistoryPdfDataUrl(null);
     };
 
     // Export functions (PDF generation)
@@ -434,16 +560,17 @@ const App: React.FC = () => {
                 const imgHeight2 = (canvas2.height * contentWidth) / canvas2.width;
                 pdf.addImage(imgData2, 'PNG', MARGIN, MARGIN, contentWidth, imgHeight2);
             }
-            if (reportContainerChinese) {
+            if (reportContainerChinese && selectedPlan?.aiSummaryChinese && !selectedPlan.aiSummaryChinese.startsWith('Translation failed')) { // Only add Chinese if summary exists and isn't an error
                  const page1_zh = reportContainerChinese.querySelector<HTMLElement>('#bp-page-1');
                  const page2_zh = reportContainerChinese.querySelector<HTMLElement>('#bp-page-2');
-                 if (page1_zh && page2_zh) {
+                 if (page1_zh) {
                     pdf.addPage();
                     const canvas1_zh = await html2canvas(page1_zh, canvasOptions);
                     const imgData1_zh = canvas1_zh.toDataURL('image/png', 1.0);
                     const imgHeight1_zh = (canvas1_zh.height * contentWidth) / canvas1_zh.width;
                     pdf.addImage(imgData1_zh, 'PNG', MARGIN, MARGIN, contentWidth, imgHeight1_zh);
-
+                 }
+                 if (page2_zh) {
                     pdf.addPage();
                     const canvas2_zh = await html2canvas(page2_zh, canvasOptions);
                     const imgData2_zh = canvas2_zh.toDataURL('image/png', 1.0);
@@ -454,7 +581,7 @@ const App: React.FC = () => {
             const pdfDataUrl = pdf.output('datauristring');
             pdf.save(`Business_Plan_${selectedPlan?.planName}.pdf`);
             await handleAddToHistory('plan', pdfDataUrl);
-        } catch (error) { console.error("Error exporting Business Plan:", error); alert("Error exporting PDF.");
+        } catch (error) { console.error("Error exporting Business Plan:", error); alert("Error exporting PDF: " + (error as Error).message);
         } finally { setIsExporting(false); reportContainer.className = originalClassName; if(reportContainerChinese) reportContainerChinese.className = originalClassName; }
     };
     
@@ -480,7 +607,7 @@ const App: React.FC = () => {
             const pdfDataUrl = pdf.output('datauristring');
             pdf.save(`PO_${selectedPlan?.planName}_${containerCount}c.pdf`);
             await handleAddToHistory('po', pdfDataUrl);
-        } catch (error) { console.error("Error exporting PO:", error); alert("Error exporting PO.");
+        } catch (error) { console.error("Error exporting PO:", error); alert("Error exporting PO: " + (error as Error).message);
         } finally { setIsExporting(false); input.className = originalClassName; }
     };
 
@@ -500,6 +627,7 @@ const App: React.FC = () => {
                     onNewPlan={handleNewPlan}
                     onViewHistoryItem={handleViewHistoryItem}
                     onUpdateHistoryStatus={handleUpdateHistoryStatus}
+                    logoUrl={logoUrl} // Pass logoUrl to SavedPlans for potential display/context
                 />
             );
         }
@@ -513,6 +641,7 @@ const App: React.FC = () => {
                         setFormInitialData(undefined);
                     }}
                     initialData={formInitialData}
+                    onProductImageUpload={handleProductImageUpload} // Pass the storage upload handler
                 />
             );
         }
@@ -561,21 +690,37 @@ const App: React.FC = () => {
 
                     <div className="overflow-x-auto pb-8">
                          {activeReportView === 'plan' ? (
-                            <BusinessPlan 
-                                ref={businessPlanRef}
-                                data={selectedPlan}
-                                logo={logo}
-                                isGeneratingSummary={generatingSummaryForPlanId === selectedPlan.id}
-                                isTranslating={isTranslating}
-                                onRetrySummary={() => handleRetrySummary(selectedPlan.id)}
-                                onTranslateSummary={() => handleTranslateSummary(selectedPlan.id)}
-                            />
+                            <>
+                                <BusinessPlan 
+                                    ref={businessPlanRef}
+                                    data={selectedPlan}
+                                    logo={logoUrl}
+                                    isGeneratingSummary={generatingSummaryForPlanId === selectedPlan.id}
+                                    isTranslating={isTranslating}
+                                    onRetrySummary={() => handleRetrySummary(selectedPlan.id)}
+                                    onTranslateSummary={() => handleTranslateSummary(selectedPlan.id)}
+                                />
+                                {selectedPlan.aiSummaryChinese && !selectedPlan.aiSummaryChinese.startsWith('Translation failed') && (
+                                    <div className="hidden"> {/* This is hidden and only used for PDF export of Chinese summary */}
+                                        <BusinessPlan 
+                                            ref={businessPlanChineseRef}
+                                            data={selectedPlan}
+                                            logo={logoUrl}
+                                            isGeneratingSummary={false}
+                                            isTranslating={false}
+                                            onRetrySummary={() => {}}
+                                            onTranslateSummary={() => {}}
+                                            languageOverride="zh" // Force Chinese language
+                                        />
+                                    </div>
+                                )}
+                            </>
                         ) : (
                             <PurchaseOrder 
                                 ref={purchaseOrderRef}
                                 data={selectedPlan}
                                 containerCount={containerCount}
-                                logo={logo}
+                                logo={logoUrl}
                                 poNumber={currentPoNumber}
                             />
                         )}
@@ -625,7 +770,7 @@ const App: React.FC = () => {
                         <div className="flex items-center space-x-4">
                              <Logo className="h-10 w-10" />
                              <label htmlFor="logo-upload" className="cursor-pointer text-text-secondary hover:text-primary transition-colors group relative" title="Upload Company Logo">
-                                {logo ? <img src={logo} alt="Logo" className="h-10 w-10 bg-gray-100 p-1 rounded-md object-contain"/> : <div className="h-10 w-10 bg-secondary rounded-md flex items-center justify-center text-primary"><svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg></div>}
+                                {logoUrl ? <img src={logoUrl} alt="Logo" className="h-10 w-10 bg-gray-100 p-1 rounded-md object-contain"/> : <div className="h-10 w-10 bg-secondary rounded-md flex items-center justify-center text-primary"><svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg></div>}
                                 <input id="logo-upload" type="file" className="hidden" accept="image/*" onChange={handleLogoUpload} />
                              </label>
                         </div>
@@ -659,7 +804,7 @@ const App: React.FC = () => {
                 <p>{APP_VERSION}</p>
             </footer>
 
-            {historyModalOpen && historyPdfUrl && (
+            {historyModalOpen && historyPdfDataUrl && (
                 <div className="fixed inset-0 bg-black bg-opacity-75 flex justify-center items-center z-50 p-4 animate-fade-in">
                     <div className="bg-white rounded-lg shadow-2xl w-full h-full max-w-5xl flex flex-col">
                         <div className="flex justify-between items-center p-4 border-b bg-gray-50 rounded-t-lg">
@@ -669,7 +814,7 @@ const App: React.FC = () => {
                             </button>
                         </div>
                         <div className="flex-grow bg-gray-200">
-                            <iframe src={historyPdfUrl} className="w-full h-full border-none" title="PDF Preview"></iframe>
+                            <iframe src={historyPdfDataUrl} className="w-full h-full border-none" title="PDF Preview"></iframe>
                         </div>
                     </div>
                 </div>

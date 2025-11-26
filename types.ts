@@ -1,3 +1,4 @@
+
 export interface Product {
   id: string;
   nexstarModel: string;
@@ -6,7 +7,7 @@ export interface Product {
   qtyInContainer: number;
   fobCostUnit: number;
   estimatedSalesPrice: number;
-  productImage: string; // Base64 string
+  productImage: string; // URL from Firebase Storage
   cbmPerUnit: number; // Cubic meters per unit for logistics calculation
 }
 
@@ -48,5 +49,13 @@ export interface ExportHistoryItem {
   containerCount?: number;
   exportedAt: string;
   status: 'pending' | 'approved' | 'disapproved';
-  pdfDataUrl?: string; // Base64 data URL of the generated PDF - Optional to prevent localStorage quota issues
+  pdfStoragePath?: string; // Path in Firebase Storage where the PDF is stored
+}
+
+export interface UserData {
+    plans: BusinessPlanData[];
+    archivedPlans: BusinessPlanData[];
+    logoStoragePath?: string; // URL or path to logo in Firebase Storage
+    poCounter: number;
+    exportHistory: Omit<ExportHistoryItem, 'pdfStoragePath'>[]; // pdfDataUrl should not be stored directly here
 }

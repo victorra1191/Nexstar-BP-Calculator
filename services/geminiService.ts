@@ -1,20 +1,17 @@
+
 import { GoogleGenAI, HarmCategory, HarmBlockThreshold } from "@google/genai";
 import type { BusinessPlanData } from '../types';
 
-// Access the API key from Vite environment variables (Vercel) OR use the hardcoded fallback.
-// We add an extra check for the string "undefined" which can happen during some build processes.
-let apiKey = process.env.API_KEY;
-if (!apiKey || apiKey === "undefined") {
-    // Updated to new key ending in ...Dj48c
-    apiKey = "AIzaSyBBPymwl4qc4KPUZRBD0dVaXQ5n6iDj48c";
-}
+// Access the API key from Vite environment variables (Vercel)
+// This `process.env.API_KEY` is defined in vite.config.ts to take VITE_API_KEY
+const apiKey = process.env.API_KEY;
 
 // Initialize conditionally to prevent crash if key is somehow missing
 const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
 
 export const generateBusinessPlanSummary = async (data: BusinessPlanData): Promise<string> => {
     if (!ai || !apiKey) {
-        return "Failed: API Key is missing. Please check your configuration.";
+        return "Failed: API Key is missing. Please configure VITE_API_KEY in Vercel Environment Variables and Redeploy.";
     }
 
     const productList = data.products.map(p => `- ${p.nexstarModel} (${p.qtyInContainer} units)`).join('\n');
@@ -60,11 +57,15 @@ export const generateBusinessPlanSummary = async (data: BusinessPlanData): Promi
 
         // Handle specific Google API errors to provide actionable feedback
         if (errorMsg.includes('API_KEY_SERVICE_BLOCKED') || errorMsg.includes('GenerativeService.GenerateContent are blocked')) {
-            return "Failed: The API Key 'Browser key' needs permission. Go to Google Cloud Console > Credentials > Edit Key > API Restrictions, and add 'Generative Language API' to the list. (Changes take 5 mins)";
+            return "Failed: The API Key needs permission. Go to Google Cloud Console > Credentials > Edit Key > API Restrictions, and add 'Generative Language API' to the list. (Changes take 5 mins)";
         }
         
         if (errorMsg.includes('PERMISSION_DENIED') || errorMsg.includes('403')) {
             return "Failed: Access denied. Please check your API Key Restrictions in Google Cloud Console. Ensure 'Generative Language API' is checked. (Changes take 5 mins)";
+        }
+        
+        if (errorMsg.includes('unauthorized domain') || errorMsg.includes('domain restriction')) {
+            return "Failed: Access denied due to domain restrictions. In Google Cloud Console > Credentials > Edit Key > Application Restrictions (Websites), add your Vercel domain (e.g., https://your-app.vercel.app).";
         }
         
         if (errorMsg.includes('429') || errorMsg.includes('quota')) {
@@ -113,6 +114,10 @@ export const translateTextToChinese = async (textToTranslate: string): Promise<s
         
         if (errorMsg.includes('API_KEY_SERVICE_BLOCKED') || errorMsg.includes('PERMISSION_DENIED')) {
              return "Translation failed: Check API Key Restrictions in Google Cloud. (Changes take 5 mins)";
+        }
+
+        if (errorMsg.includes('unauthorized domain') || errorMsg.includes('domain restriction')) {
+            return "Translation failed: Access denied due to domain restrictions. In Google Cloud Console > Credentials > Edit Key > Application Restrictions (Websites), add your Vercel domain (e.g., https://your-app.vercel.app).";
         }
         
         return "Translation failed. Please try again.";
