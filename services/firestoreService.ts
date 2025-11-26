@@ -9,7 +9,7 @@ import {
     User
 } from 'firebase/auth';
 import { doc, setDoc, onSnapshot, getDoc } from 'firebase/firestore';
-import { ref, uploadString, getDownloadURL, deleteObject, uploadBytes } from 'firebase/storage'; // Import Storage functions
+import { ref, uploadString, getDownloadURL, deleteObject, uploadBytesResumable } from 'firebase/storage'; // Import Storage functions
 import { auth, db, storage } from './firebaseConfig'; // Import storage instance
 import type { BusinessPlanData, ExportHistoryItem } from '../types';
 
@@ -18,7 +18,7 @@ export interface UserData {
     archivedPlans: BusinessPlanData[];
     logoStoragePath?: string; // Path in Storage for the logo
     poCounter: number;
-    exportHistory: Omit<ExportHistoryItem, 'pdfStoragePath'>[]; // pdfDataUrl should not be stored directly here
+    exportHistory: Omit<ExportHistoryItem, 'pdfDataUrl'>[]; // pdfDataUrl should not be stored directly here
 }
 
 const getUserDocRef = (uid: string) => doc(db, 'users', uid);
@@ -42,24 +42,22 @@ const cleanData = (data: any): any => {
 /**
  * Uploads a file (base64 string or Blob) to Firebase Storage.
  * @param uid User ID
- * @param fileData The base64 string or Blob of the file.
- * @param storagePath The full path in Firebase Storage (e.g., 'logos/user_abc_logo.png').
+ * @param fileData The File object or Blob of the file.
+ * @param storagePath The full path in Firebase Storage (e.g., 'users/UID/logos/logo.png').
  * @returns The download URL of the uploaded file.
  */
-export const uploadFileToStorage = async (uid: string, fileData: string | Blob, storagePath: string): Promise<string> => {
+export const uploadFileToStorage = async (uid: string, fileData: File | Blob, storagePath: string): Promise<string> => {
     if (!uid) throw new Error("User not authenticated for Storage upload.");
 
     const storageRef = ref(storage, storagePath);
     let snapshot;
 
-    if (typeof fileData === 'string' && fileData.startsWith('data:image')) {
-        // Handle Base64 image
-        snapshot = await uploadString(storageRef, fileData, 'data_url');
-    } else if (fileData instanceof Blob) {
-        // Handle Blob (e.g., from PDF export)
-        snapshot = await uploadBytes(storageRef, fileData);
+    if (fileData instanceof File || fileData instanceof Blob) {
+        // Use uploadBytesResumable for better handling of large files and consistency
+        const uploadTask = uploadBytesResumable(storageRef, fileData);
+        snapshot = await uploadTask; // Wait for the upload to complete
     } else {
-        throw new Error("Unsupported fileData format for upload.");
+        throw new Error("Unsupported fileData format for upload (expected File or Blob).");
     }
     
     return getDownloadURL(snapshot.ref);

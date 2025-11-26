@@ -21,7 +21,7 @@ import {
 import type { BusinessPlanData, ViewType, AppView, ExportHistoryItem } from './types';
 import type { User } from 'firebase/auth';
 
-const APP_VERSION = "v2.0"; // Updated version to confirm deployment with Storage integration
+const APP_VERSION = "v2.2"; // Updated version to confirm deployment with Storage integration
 
 // Helper to convert File to Base64 (used for preview before upload to storage)
 const fileToBase64 = (file: File): Promise<string> =>
@@ -78,6 +78,7 @@ const App: React.FC = () => {
     const [containerCount, setContainerCount] = useState(1);
     const [poCounter, setPoCounter] = useState(1);
     const [logoUrl, setLogoUrl] = useState(''); // Stores URL from Storage
+    const [logoStoragePath, setLogoStoragePath] = useState<string | undefined>(undefined); // Stores path in Storage
     const [formInitialData, setFormInitialData] = useState<BusinessPlanData | undefined>(undefined);
     const [currentPoNumber, setCurrentPoNumber] = useState('');
     const [exportHistory, setExportHistory] = useState<ExportHistoryItem[]>([]);
@@ -85,7 +86,7 @@ const App: React.FC = () => {
     // UI State
     const [isExporting, setIsExporting] = useState(false);
     const [historyModalOpen, setHistoryModalOpen] = useState(false);
-    const [historyPdfDataUrl, setHistoryPdfDataUrl] = useState<string | null>(null); // For displaying in modal (base64)
+    const [historyPdfDataUrl, setHistoryPdfDataUrl] = useState<string | null>(null); // For displaying in modal (public URL)
     const [pdfLibrariesLoaded, setPdfLibrariesLoaded] = useState(false);
     const [generatingSummaryForPlanId, setGeneratingSummaryForPlanId] = useState<string | null>(null);
     const [isTranslating, setIsTranslating] = useState(false);
@@ -114,46 +115,75 @@ const App: React.FC = () => {
                         console.log("Migrating local data to cloud...");
 
                         // Handle logo migration (if present in local storage)
-                        let migratedLogoStoragePath: string | undefined = undefined;
+                        let migratedLogoStoragePath: string | null = null;
                         if (localData.logo && currentUser) {
-                            migratedLogoStoragePath = await uploadFileToStorage(currentUser.uid, localData.logo, `logos/user_${currentUser.uid}_logo`);
+                            // If localData.logo is base64, upload it
+                            if (localData.logo.startsWith('data:image')) {
+                                const logoBlob = await (await fetch(localData.logo)).blob();
+                                migratedLogoStoragePath = `users/${currentUser.uid}/logos/user_logo_${new Date().getTime()}`;
+                                await uploadFileToStorage(currentUser.uid, logoBlob, migratedLogoStoragePath);
+                            } else {
+                                migratedLogoStoragePath = localData.logo; // Assume it's already a Storage path/URL
+                            }
                         }
 
+                        // Adjust plans and product images if they are base64
+                        const migratePlans = async (plansToMigrate: BusinessPlanData[]) => {
+                            return Promise.all(plansToMigrate.map(async plan => {
+                                const productsWithMigratedImages = await Promise.all(plan.products.map(async product => {
+                                    if (product.productImage && product.productImage.startsWith('data:image')) {
+                                        const imageBlob = await (await fetch(product.productImage)).blob();
+                                        const storagePath = `users/${currentUser.uid}/product_images/${product.id}_${new Date().getTime()}`;
+                                        const imageUrl = await uploadFileToStorage(currentUser.uid, imageBlob, storagePath);
+                                        return { ...product, productImage: imageUrl };
+                                    }
+                                    return product;
+                                }));
+                                return { ...plan, products: productsWithMigratedImages };
+                            }));
+                        };
+
+                        const migratedPlans = await migratePlans(localData.plans || []);
+                        const migratedArchivedPlans = await migratePlans(localData.archivedPlans || []);
+
                         // Adjust exportHistory to remove pdfDataUrl before saving to cloud
-                        const migratedExportHistory = (localData.exportHistory || []).map((item: any) => {
-                            // Ensure pdfDataUrl is NOT stored directly in Firestore document
-                            const { pdfDataUrl, ...rest } = item; 
+                        const migratedExportHistory = await Promise.all((localData.exportHistory || []).map(async (item: any) => {
+                            if (item.pdfDataUrl && item.pdfDataUrl.startsWith('data:application/pdf')) {
+                                const pdfBlob = await (await fetch(item.pdfDataUrl)).blob();
+                                const storagePath = `users/${currentUser.uid}/pdf_exports/${item.id}_${new Date().getTime()}.pdf`;
+                                await uploadFileToStorage(currentUser.uid, pdfBlob, storagePath);
+                                const { pdfDataUrl, ...rest } = item;
+                                return { ...rest, pdfStoragePath: storagePath };
+                            }
+                            const { pdfDataUrl, ...rest } = item; // Ensure pdfDataUrl is NOT stored directly in Firestore document
                             return rest;
-                        });
+                        }));
 
                         await saveUserData(currentUser.uid, {
-                            plans: localData.plans || [],
-                            archivedPlans: localData.archivedPlans || [],
-                            logoStoragePath: migratedLogoStoragePath, // Store URL/path from Storage
+                            plans: migratedPlans,
+                            archivedPlans: migratedArchivedPlans,
+                            logoStoragePath: migratedLogoStoragePath, // Store path from Storage
                             poCounter: localData.poCounter || 1,
                             exportHistory: migratedExportHistory
                         });
                         localStorage.removeItem('nexstar_data'); // Clear local data after successful migration
                     } catch (e) {
                         console.error("Migration failed", e);
-                        setSyncError("Failed to migrate local data to cloud.");
+                        setSyncError(`Failed to migrate local data to cloud: ${String(e)}`);
                     }
                 }
 
                 // SUBSCRIBE TO FIRESTORE
                 const unsubscribeFirestore = onUserDataSnapshot(currentUser.uid, async (data) => {
                     if (data) {
-                        setPlans(data.plans || []);
-                        setArchivedPlans(data.archivedPlans || []);
-                        setPoCounter(data.poCounter || 1);
-                        setExportHistory(data.exportHistory || []);
-
                         // Retrieve logo URL from Storage if path exists
                         if (data.logoStoragePath) {
                             const url = await getDownloadURLFromStoragePath(data.logoStoragePath);
                             setLogoUrl(url);
+                            setLogoStoragePath(data.logoStoragePath);
                         } else {
                             setLogoUrl('');
+                            setLogoStoragePath(undefined);
                         }
 
                         // Pre-fetch product image URLs for plans
@@ -164,7 +194,7 @@ const App: React.FC = () => {
                                         const url = await getDownloadURLFromStoragePath(product.productImage);
                                         return { ...product, productImage: url };
                                     } catch (e) {
-                                        console.warn(`Could not get download URL for ${product.productImage}`, e);
+                                        console.warn(`Could not get download URL for ${product.productImage} for plan ${plan.id}:`, e);
                                         return { ...product, productImage: '' }; // Fallback to empty if URL fails
                                     }
                                 }
@@ -174,12 +204,45 @@ const App: React.FC = () => {
                         }));
                         setPlans(plansWithImages);
 
+                        const archivedPlansWithImages = await Promise.all((data.archivedPlans || []).map(async plan => {
+                            const productsWithImages = await Promise.all(plan.products.map(async product => {
+                                if (product.productImage && !product.productImage.startsWith('http')) { // If it's a storage path
+                                    try {
+                                        const url = await getDownloadURLFromStoragePath(product.productImage);
+                                        return { ...product, productImage: url };
+                                    } catch (e) {
+                                        console.warn(`Could not get download URL for archived ${product.productImage} for plan ${plan.id}:`, e);
+                                        return { ...product, productImage: '' }; // Fallback to empty if URL fails
+                                    }
+                                }
+                                return product;
+                            }));
+                            return { ...plan, products: productsWithImages };
+                        }));
+                        setArchivedPlans(archivedPlansWithImages);
+
+                        setPoCounter(data.poCounter || 1);
+                        // Fetch PDF URLs for export history
+                        const historyWithUrls = await Promise.all((data.exportHistory || []).map(async item => {
+                            if (item.pdfStoragePath) {
+                                try {
+                                    const url = await getDownloadURLFromStoragePath(item.pdfStoragePath);
+                                    return { ...item, pdfDataUrl: url }; // Store public URL for display
+                                } catch (e) {
+                                    console.warn(`Could not get download URL for PDF history item ${item.id}:`, e);
+                                    return { ...item, pdfDataUrl: null }; // Fallback
+                                }
+                            }
+                            return item;
+                        }));
+                        setExportHistory(historyWithUrls);
 
                     } else {
                         // New user with no data
                         setPlans([]);
                         setArchivedPlans([]);
                         setLogoUrl('');
+                        setLogoStoragePath(undefined);
                         setPoCounter(1);
                         setExportHistory([]);
                     }
@@ -192,6 +255,7 @@ const App: React.FC = () => {
                 setPlans([]);
                 setArchivedPlans([]);
                 setLogoUrl('');
+                setLogoStoragePath(undefined);
                 setAuthLoading(false);
             }
         });
@@ -210,7 +274,11 @@ const App: React.FC = () => {
         Promise.all([
             loadScript("https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"),
             loadScript("https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js")
-        ]).then(() => setPdfLibrariesLoaded(true));
+        ]).then(() => setPdfLibrariesLoaded(true))
+        .catch(error => {
+            console.error("Failed to load PDF libraries:", error);
+            setSyncError("Failed to load PDF export libraries. Please check your internet connection.");
+        });
 
         return () => unsubscribeAuth();
     }, [user?.uid]); // Re-run effect if user UID changes for proper subscription/migration
@@ -369,7 +437,7 @@ const App: React.FC = () => {
             // Delete associated images from Storage
             for (const product of planToDelete.products) {
                 if (product.productImage && !product.productImage.startsWith('http')) { // Check if it's a storage path
-                    await deleteFileFromStorage(product.productImage);
+                    await deleteFileFromStorage(product.productImage); // Delete using path
                 }
             }
             
@@ -377,7 +445,7 @@ const App: React.FC = () => {
             const historyItemsToDelete = exportHistory.filter(item => item.planModel === planToDelete.planName && item.pdfStoragePath);
             for (const item of historyItemsToDelete) {
                 if (item.pdfStoragePath) {
-                    await deleteFileFromStorage(item.pdfStoragePath);
+                    await deleteFileFromStorage(item.pdfStoragePath); // Delete using path
                 }
             }
         }
@@ -422,10 +490,11 @@ const App: React.FC = () => {
         }
         if (e.target.files && e.target.files[0]) {
             const file = e.target.files[0];
-            const storagePath = `logos/user_${user.uid}_logo_${file.name}`; // Unique path for logo
+            const storagePath = `users/${user.uid}/logos/user_logo_${file.name}_${new Date().getTime()}`; // Unique path for logo
             try {
                 const downloadUrl = await uploadFileToStorage(user.uid, file, storagePath);
                 setLogoUrl(downloadUrl); // Store URL
+                setLogoStoragePath(storagePath); // Update the path state
                 await persistData({ logoStoragePath: storagePath }); // Store path in Firestore
             } catch (error) {
                 console.error("Error uploading logo:", error);
@@ -439,7 +508,7 @@ const App: React.FC = () => {
         if (!user) {
             throw new Error("User not signed in. Cannot upload product image.");
         }
-        const storagePath = `product_images/user_${user.uid}_${productId}_${file.name}`;
+        const storagePath = `users/${user.uid}/product_images/${productId}_${file.name}_${new Date().getTime()}`;
         const downloadUrl = await uploadFileToStorage(user.uid, file, storagePath);
         return downloadUrl; // Return the URL to be stored in product data
     };
@@ -459,10 +528,11 @@ const App: React.FC = () => {
     const handleAddToHistory = async (type: ViewType, pdfDataUrl: string) => {
         if (!user || !selectedPlan) return;
         
-        const storagePath = `pdf_exports/user_${user.uid}_${selectedPlan.id}_${type}_${new Date().getTime()}.pdf`;
+        const storagePath = `users/${user.uid}/pdf_exports/${selectedPlan.id}_${type}_${new Date().getTime()}.pdf`;
         try {
             const fileBlob = await fetch(pdfDataUrl).then(res => res.blob());
-            const downloadUrl = await uploadFileToStorage(user.uid, fileBlob, storagePath); // Upload PDF to storage
+            await uploadFileToStorage(user.uid, fileBlob, storagePath); // Upload PDF to storage
+            // No need to get download URL here, just store the path
 
             const newItem: ExportHistoryItem = {
                 id: `${new Date().toISOString()}-${Math.random()}`,
@@ -483,8 +553,9 @@ const App: React.FC = () => {
             
             // Only store item properties relevant to Firestore, exclude large data like pdfDataUrl
             const historyToSave = newHistory.map(item => {
-                const { pdfStoragePath, ...rest } = item;
-                return { ...rest, pdfStoragePath: item.pdfStoragePath || null }; // Store path, not data url
+                // Ensure pdfDataUrl is not saved, only pdfStoragePath
+                const { pdfDataUrl, ...rest } = item; 
+                return { ...rest, pdfStoragePath: item.pdfStoragePath || null }; // Store path
             });
             await persistData({ exportHistory: historyToSave });
 
@@ -514,7 +585,7 @@ const App: React.FC = () => {
         const newHistory = exportHistory.map(item => item.id === itemId ? { ...item, status } : item);
         setExportHistory(newHistory);
         const historyToSave = newHistory.map(item => {
-            const { pdfStoragePath, ...rest } = item;
+            const { pdfDataUrl, ...rest } = item; // Ensure pdfDataUrl is not saved
             return { ...rest, pdfStoragePath: item.pdfStoragePath || null };
         });
         await persistData({ exportHistory: historyToSave });

@@ -55,7 +55,7 @@ export interface ExportHistoryItem {
 export interface UserData {
     plans: BusinessPlanData[];
     archivedPlans: BusinessPlanData[];
-    logoStoragePath?: string; // URL or path to logo in Firebase Storage
+    logoStoragePath?: string; // Path in Storage for the logo
     poCounter: number;
     exportHistory: Omit<ExportHistoryItem, 'pdfStoragePath'>[]; // pdfDataUrl should not be stored directly here
 }

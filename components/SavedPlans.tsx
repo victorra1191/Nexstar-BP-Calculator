@@ -179,7 +179,7 @@ const SavedPlans: React.FC<SavedPlansProps> = ({ plans, archivedPlans, history, 
                                         onClick={() => onViewHistoryItem(item.id)} 
                                         className="text-sm bg-secondary text-text-primary font-semibold py-1.5 px-4 rounded-lg hover:bg-gray-300 transition-colors disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed"
                                         disabled={!item.pdfStoragePath}
-                                        title={!item.pdfStoragePath ? "PDF preview is only available for the current session" : "View PDF"}
+                                        title={!item.pdfStoragePath ? "PDF preview is only available if it was saved to cloud storage" : "View PDF"}
                                      >
                                         View PDF
                                     </button>

@@ -2,24 +2,20 @@
 /// <reference types="node" />
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
+import { firebaseConfig } from './services/firebaseConfig'; // Import your Firebase config
 
 export default defineConfig(({ mode }) => {
-  // Load env file based on `mode` in the current working directory.
-  // The third parameter is the prefix that will be exposed in the client code.
-  // We specify '' to load all env vars, then explicitly define `process.env.API_KEY`.
   const env = loadEnv(mode, process.cwd(), '');
 
-  // Your specific Firebase/Google key. This acts as a robust fallback.
-  // This key should ideally be managed via Vercel env vars as VITE_API_KEY
-  const FALLBACK_API_KEY = "AIzaSyBBPymwl4qc4KPUZRBD0dVaXQ5n6iDj48c"; // Ensure this is your latest, working key
-
-  const apiKeyToInject = env.VITE_API_KEY || FALLBACK_API_KEY;
+  // Prioritize Vercel env var, fallback to firebaseConfig.apiKey if VITE_API_KEY is not set.
+  // This ensures there's always an API key available, even if Vercel env is not fully configured.
+  const apiKeyToInject = env.VITE_API_KEY || firebaseConfig.apiKey;
 
   return {
     plugins: [react()],
     define: {
-      // Injects the API Key directly into the client-side code string.
-      // This is the standard way to expose env vars starting with VITE_ to process.env in Vite.
+      // Injects the API Key directly into the client-side code as a string literal.
+      // This maps VITE_API_KEY (from Vercel) or the fallback directly to process.env.API_KEY.
       'process.env.API_KEY': JSON.stringify(apiKeyToInject)
     },
     build: {

@@ -1,5 +1,6 @@
 
-const CACHE_NAME = 'nexstar-planner-v26';
+
+const CACHE_NAME = 'nexstar-planner-v28';
 const urlsToCache = [
   '/',
   '/index.html',
