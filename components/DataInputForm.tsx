@@ -149,7 +149,7 @@ const DataInputForm: React.FC<DataInputFormProps> = ({ onSave, onCancel, initial
                     products: prev.products.map(p => p.id === productId ? { ...p, productImage: imageUrl } : p)
                 }));
             } catch (error: any) {
-                console.error("Error uploading product image:", error);
+                console.error(`[Upload Error] Failed to upload image for product ${productId}:`, error);
                 setUploadErrors(prev => ({ ...prev, [productId]: error.message || "Unknown upload error" }));
                 setPreviewImageUrls(prev => ({ ...prev, [productId]: '' })); // Clear preview on error
             } finally {

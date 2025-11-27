@@ -10,6 +10,7 @@ const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
 
 export const generateBusinessPlanSummary = async (data: BusinessPlanData): Promise<string> => {
     if (!ai || !apiKey) {
+        console.error("[Gemini Error] API Key is missing for summary generation.");
         return "Failed: API Key is missing. Please configure VITE_API_KEY in Vercel Environment Variables and Redeploy.";
     }
 
@@ -35,6 +36,8 @@ export const generateBusinessPlanSummary = async (data: BusinessPlanData): Promi
         Weave the key data into a compelling narrative about this consolidated shipment as a business opportunity. Do not just list the numbers.
     `;
 
+    console.log("[Gemini] Sending summary prompt:", prompt);
+
     try {
         const response = await ai.models.generateContent({
             model: 'gemini-2.5-flash',
@@ -48,9 +51,11 @@ export const generateBusinessPlanSummary = async (data: BusinessPlanData): Promi
                 ]
             }
         });
-        return response.text || "No summary generated.";
+        const summaryText = response.text;
+        console.log("[Gemini] Summary response received:", summaryText);
+        return summaryText || "No summary generated.";
     } catch (error: any) {
-        console.error("Error generating summary:", error);
+        console.error("[Gemini Error] Error generating summary:", error);
         
         const errorMsg = error.message || String(error);
 
@@ -77,6 +82,7 @@ export const generateBusinessPlanSummary = async (data: BusinessPlanData): Promi
 
 export const translateTextToChinese = async (textToTranslate: string): Promise<string> => {
     if (!ai || !apiKey) {
+        console.error("[Gemini Error] API Key is missing for translation.");
         return "Translation failed: API Key is missing.";
     }
 
@@ -93,6 +99,8 @@ export const translateTextToChinese = async (textToTranslate: string): Promise<s
         Chinese Translation:
     `;
 
+    console.log("[Gemini] Sending translation prompt for text:", textToTranslate.substring(0, 100) + "...");
+
     try {
         const response = await ai.models.generateContent({
             model: 'gemini-2.5-flash',
@@ -106,9 +114,11 @@ export const translateTextToChinese = async (textToTranslate: string): Promise<s
                 ]
             }
         });
-        return response.text || "Translation failed.";
+        const translatedText = response.text;
+        console.log("[Gemini] Translation response received:", translatedText);
+        return translatedText || "Translation failed.";
     } catch (error: any) {
-        console.error("Error translating text:", error);
+        console.error("[Gemini Error] Error translating text:", error);
         const errorMsg = error.message || String(error);
         
         if (errorMsg.includes('API_KEY_SERVICE_BLOCKED') || errorMsg.includes('PERMISSION_DENIED')) {
