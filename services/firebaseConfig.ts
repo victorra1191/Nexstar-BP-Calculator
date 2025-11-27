@@ -12,7 +12,7 @@ export const firebaseConfig = {
   apiKey: "AIzaSyBBPymwl4qc4KPUZRBD0dVaXQ5n6iDj48c", // NEW KEY
   authDomain: "gen-lang-client-0949923939.firebaseapp.com",
   projectId: "gen-lang-client-0949923939",
-  storageBucket: "gen-lang-client-0949923939.appspot.com",
+  storageBucket: "gen-lang-client-0949923939.firebasestorage.app", // CORRECTED BUCKET NAME!
   messagingSenderId: "517665894104",
   appId: "1:517665894104:web:6f23cbba56d9dac932b1ad",
   measurementId: "G-V4RN5DFVCT"
