@@ -230,7 +230,7 @@ const DataInputForm: React.FC<DataInputFormProps> = ({ onSave, onCancel, initial
                                             <label className="block text-sm font-medium text-text-secondary">Product Image</label>
                                             <div className="mt-1 flex items-center space-x-4">
                                                 <div className="w-24 h-24 rounded-md bg-secondary border border-gray-300 flex items-center justify-center">
-                                                    {previewImageUrls[product.id] || product.productImage ? <img src={previewImageUrls[product.id] || product.productImage} alt="Preview" className="w-full h-full object-cover rounded-md" /> : <span className="text-xs text-text-secondary">Preview</span>}
+                                                    {(previewImageUrls[product.id] || product.productImage) ? <img src={previewImageUrls[product.id] || product.productImage} alt="Preview" className="w-full h-full object-cover rounded-md" /> : <span className="text-xs text-text-secondary">Preview</span>}
                                                 </div>
                                                 <input 
                                                     type="file" 
