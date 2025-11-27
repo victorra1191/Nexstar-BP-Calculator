@@ -138,25 +138,35 @@ const BusinessPlan = forwardRef<HTMLDivElement, BusinessPlanProps>(
         let destAllocatedPerUnit = 0;
         const qty = product.qtyInContainer || 0;
 
+        console.log(`[Freight Calc] Product: ${product.nexstarModel}, CBM/Unit: ${product.cbmPerUnit}, Qty: ${qty}, FreightTotal: ${data.freightTotal}`);
+
         // Conditional logic for freight allocation based on consolidated vs. single product
-        if (data.products.length > 1) { // Consolidated Logic (apply new formula)
-            // Formula: ((product.cbmPerUnit / TOTAL_CONTAINER_NOMINAL_CBM) * freight value)
-            freightAllocatedPerUnit = ((product.cbmPerUnit || 0) / TOTAL_CONTAINER_NOMINAL_CBM) * (data.freightTotal || 0);
+        if (data.products.length > 1) { // Consolidated Logic (apply new formula adjusted for unit cost)
+            console.log(`[Freight Calc - Consolidated] Applying new formula for consolidated plan.`);
+            // Formula breakdown:
+            // 1. Calculate total freight allocated to this specific product based on its CBM proportion of a nominal container size.
+            const totalFreightForThisProduct = ((product.cbmPerUnit || 0) / TOTAL_CONTAINER_NOMINAL_CBM) * (data.freightTotal || 0);
+            console.log(`[Freight Calc - Consolidated] Total Freight for Product (${product.nexstarModel}): $${totalFreightForThisProduct.toFixed(2)}`);
+
+            // 2. Divide that total freight by the quantity of this specific product to get the unit cost.
+            freightAllocatedPerUnit = qty > 0 ? totalFreightForThisProduct / qty : 0;
+            console.log(`[Freight Calc - Consolidated] Unit Freight for Product (${product.nexstarModel}): $${freightAllocatedPerUnit.toFixed(2)} ($${totalFreightForThisProduct.toFixed(2)} / ${qty} units)`);
+
         } else { // Single Product Logic (revert to original proportional logic, which simplifies for a single product)
-            if (totalCbmInPlan > 0 && (product.cbmPerUnit || 0) > 0) {
-                const productTotalCbm = qty * (product.cbmPerUnit || 0);
-                const shareOfContainer = productTotalCbm / totalCbmInPlan;
-                const totalFreightForProduct = (data.freightTotal || 0) * shareOfContainer;
-                freightAllocatedPerUnit = qty > 0 ? totalFreightForProduct / qty : 0;
+            console.log(`[Freight Calc - Single Product] Applying original proportional logic.`);
+            if (totalQtyInPlan > 0) {
+                // For a single product plan, total freight is just divided by its total quantity
+                freightAllocatedPerUnit = (data.freightTotal || 0) / totalQtyInPlan;
+                console.log(`[Freight Calc - Single Product] Unit Freight for Product (${product.nexstarModel}): $${freightAllocatedPerUnit.toFixed(2)} ($${(data.freightTotal || 0).toFixed(2)} / ${totalQtyInPlan} units)`);
             } else {
-                // Fallback for single product if CBM is zero or totalQty is zero
-                freightAllocatedPerUnit = totalQtyInPlan > 0 ? (data.freightTotal || 0) / totalQtyInPlan : 0;
+                freightAllocatedPerUnit = 0;
+                console.log(`[Freight Calc - Single Product] Unit Freight for Product (${product.nexstarModel}): $0.00 (Total Qty is zero)`);
             }
         }
         
         // Destination costs distribution remains proportional by CBM (if available), or by quantity (fallback)
         if (totalCbmInPlan > 0 && (product.cbmPerUnit || 0) > 0) {
-             const productTotalCbm = qty * product.cbmPerUnit;
+             const productTotalCbm = qty * (product.cbmPerUnit || 0);
              const shareOfContainer = productTotalCbm / totalCbmInPlan;
              const totalDestForProduct = (data.destinationCostsTotal || 0) * shareOfContainer;
              destAllocatedPerUnit = qty > 0 ? totalDestForProduct / qty : 0;
@@ -169,6 +179,8 @@ const BusinessPlan = forwardRef<HTMLDivElement, BusinessPlanProps>(
         const unitSalesMargin = (product.estimatedSalesPrice || 0) - totalUnitCost;
         const grossSalesMarginPercent = (product.estimatedSalesPrice || 0) > 0 ? (unitSalesMargin / product.estimatedSalesPrice) * 100 : 0;
         const grossMarkupPercent = totalUnitCost > 0 ? (unitSalesMargin / totalUnitCost) * 100 : 0;
+
+        console.log(`[Freight Calc - Final] ${product.nexstarModel} -> Freight Allocated Per Unit: $${freightAllocatedPerUnit.toFixed(2)}`);
 
         return (
             <FinancialTable key={product.id} title={`${T.product}: ${product.nexstarModel}`}>
