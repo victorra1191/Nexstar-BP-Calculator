@@ -21,7 +21,7 @@ import {
 import type { BusinessPlanData, ViewType, AppView, ExportHistoryItem, ExportHistoryItemWithUrl } from './types';
 import type { User } from 'firebase/auth';
 
-const APP_VERSION = "v2.2.10"; // Updated version for PDF size optimization
+const APP_VERSION = "v2.2.12"; // Updated version for PDF export robustness and app loading fixes
 
 // Helper to convert File to Base64 (used for preview before upload to storage)
 const fileToBase64 = (file: File): Promise<string> =>
@@ -49,7 +49,7 @@ const PDFExportButton: React.FC<PDFExportButtonProps> = ({ onClick, isExporting,
         return (
             <>
                 {/* Updated SVG path to a well-formed version */}
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v12m0 0l-4-4m4 4l4-4m-4 4V4m-8 8v4a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4m-8 8v4a3 3 0 003 3h10a3 3 0 003-3v-4" /></svg>
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v12m0 0l-4-4m4 4l4-4m-4 4V4m-8 8v4a3 0 003 3h10a3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4m-8 8v4a3 0 003 3h10a3 0 003-3v-4" /></svg>
                 Download PDF
             </>
         );
@@ -752,43 +752,47 @@ const App: React.FC = () => {
             const pdf = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
             const pdfWidth = pdf.internal.pageSize.getWidth();
             const contentWidth = pdfWidth - MARGIN * 2;
-            const canvasOptions = { scale: 2, useCORS: true, logging: false, backgroundColor: '#ffffff' }; // Scale reduced to 2, output as JPEG
+            const canvasOptions = { scale: 2, useCORS: true, logging: false, backgroundColor: '#ffffff' };
+            console.log("[PDF Export Debug] html2canvas options:", canvasOptions);
+
+            const addPageToPdf = async (element: HTMLElement, pageName: string) => {
+                const canvas = await html2canvas(element, canvasOptions);
+                console.log(`[PDF Export Debug] ${pageName} Canvas: Width=${canvas.width}, Height=${canvas.height}`);
+                const imgData = canvas.toDataURL('image/jpeg', 0.8);
+                console.log(`[PDF Export Debug] ${pageName} imgData length (JPEG 0.8): ${imgData.length}`);
+                const imgHeight = (canvas.height * contentWidth) / canvas.width;
+                console.log(`[PDF Export Debug] ${pageName} addImage args: ('JPEG', MARGIN, MARGIN, ${contentWidth}, ${imgHeight})`);
+
+                if (canvas.width > 0 && canvas.height > 0 && !isNaN(imgHeight) && imgHeight > 0 && imgData.length > 'data:image/jpeg;base64,'.length) {
+                    pdf.addImage(imgData, 'JPEG', MARGIN, MARGIN, contentWidth, imgHeight);
+                    console.log(`[PDF Export] ${pageName} added to PDF.`);
+                } else {
+                    console.warn(`[PDF Export Warning] Skipping adding ${pageName} to PDF due to invalid canvas or image data. Canvas W:${canvas.width} H:${canvas.height}, imgHeight:${imgHeight}, imgData length:${imgData.length}`);
+                }
+            };
+
             const page1 = reportContainer.querySelector<HTMLElement>('#bp-page-1');
             const page2 = reportContainer.querySelector<HTMLElement>('#bp-page-2');
+
             if (page1) {
-                const canvas1 = await html2canvas(page1, canvasOptions);
-                const imgData1 = canvas1.toDataURL('image/jpeg', 0.8); // Changed to JPEG, quality 0.8
-                const imgHeight1 = (canvas1.height * contentWidth) / canvas1.width;
-                pdf.addImage(imgData1, 'JPEG', MARGIN, MARGIN, contentWidth, imgHeight1);
-                console.log("[PDF Export] Page 1 (English) added to PDF.");
+                await addPageToPdf(page1, 'Page 1 (English)');
             }
             if (page2) {
                 pdf.addPage();
-                const canvas2 = await html2canvas(page2, canvasOptions);
-                const imgData2 = canvas2.toDataURL('image/jpeg', 0.8); // Changed to JPEG, quality 0.8
-                const imgHeight2 = (canvas2.height * contentWidth) / canvas2.width;
-                pdf.addImage(imgData2, 'JPEG', MARGIN, MARGIN, contentWidth, imgHeight2);
-                console.log("[PDF Export] Page 2 (English) added to PDF.");
+                await addPageToPdf(page2, 'Page 2 (English)');
             }
-            if (reportContainerChinese && selectedPlan?.aiSummaryChinese && !selectedPlan.aiSummaryChinese.startsWith('Translation failed')) { // Only add Chinese if summary exists and isn't an error
-                 const page1_zh = reportContainerChinese.querySelector<HTMLElement>('#bp-page-1');
-                 const page2_zh = reportContainerChinese.querySelector<HTMLElement>('#bp-page-2');
-                 if (page1_zh) {
+
+            if (reportContainerChinese && selectedPlan?.aiSummaryChinese && !selectedPlan.aiSummaryChinese.startsWith('Translation failed')) {
+                const page1_zh = reportContainerChinese.querySelector<HTMLElement>('#bp-page-1');
+                const page2_zh = reportContainerChinese.querySelector<HTMLElement>('#bp-page-2');
+                if (page1_zh) {
                     pdf.addPage();
-                    const canvas1_zh = await html2canvas(page1_zh, canvasOptions);
-                    const imgData1_zh = canvas1_zh.toDataURL('image/jpeg', 0.8); // Changed to JPEG, quality 0.8
-                    const imgHeight1_zh = (canvas1_zh.height * contentWidth) / canvas1_zh.width;
-                    pdf.addImage(imgData1_zh, 'JPEG', MARGIN, MARGIN, contentWidth, imgHeight1_zh);
-                    console.log("[PDF Export] Page 1 (Chinese) added to PDF.");
-                 }
-                 if (page2_zh) {
+                    await addPageToPdf(page1_zh, 'Page 1 (Chinese)');
+                }
+                if (page2_zh) {
                     pdf.addPage();
-                    const canvas2_zh = await html2canvas(page2_zh, canvasOptions);
-                    const imgData2_zh = canvas2_zh.toDataURL('image/jpeg', 0.8); // Changed to JPEG, quality 0.8
-                    const imgHeight2_zh = (canvas2_zh.height * contentWidth) / canvas2_zh.width;
-                    pdf.addImage(imgData2_zh, 'JPEG', MARGIN, MARGIN, contentWidth, imgHeight2_zh);
-                    console.log("[PDF Export] Page 2 (Chinese) added to PDF.");
-                 }
+                    await addPageToPdf(page2_zh, 'Page 2 (Chinese)');
+                }
             }
             const pdfDataUrl = pdf.output('datauristring');
             pdf.save(`Business_Plan_${selectedPlan?.planName}.pdf`);
@@ -814,13 +818,25 @@ const App: React.FC = () => {
         input.className = originalClassName.replace(/animate-[a-z-]+/g, ' ');
         try {
             const MARGIN = 40; 
-            const canvas = await html2canvas(input, { scale: 2, useCORS: true, logging: false, backgroundColor: '#ffffff' }); // Scale reduced to 2, output as JPEG
-            const imgData = canvas.toDataURL('image/jpeg', 0.8); // Changed to JPEG, quality 0.8
+            const canvasOptions = { scale: 2, useCORS: true, logging: false, backgroundColor: '#ffffff' };
+            const canvas = await html2canvas(input, canvasOptions);
+            const imgData = canvas.toDataURL('image/jpeg', 0.8);
             const pdf = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
             const pdfWidth = pdf.internal.pageSize.getWidth();
             const contentWidth = pdfWidth - MARGIN * 2;
             const imgHeight = (canvas.height * contentWidth) / canvas.width;
-            pdf.addImage(imgData, 'JPEG', MARGIN, MARGIN, contentWidth, imgHeight);
+            
+            console.log(`[PDF Export Debug] PO Canvas: Width=${canvas.width}, Height=${canvas.height}`);
+            console.log(`[PDF Export Debug] PO imgData length (JPEG 0.8): ${imgData.length}`);
+            console.log(`[PDF Export Debug] PO addImage args: ('JPEG', MARGIN, MARGIN, ${contentWidth}, ${imgHeight})`);
+
+            if (canvas.width > 0 && canvas.height > 0 && !isNaN(imgHeight) && imgHeight > 0 && imgData.length > 'data:image/jpeg;base64,'.length) {
+                pdf.addImage(imgData, 'JPEG', MARGIN, MARGIN, contentWidth, imgHeight);
+                console.log("[PDF Export] Purchase Order page added to PDF.");
+            } else {
+                console.warn(`[PDF Export Warning] Skipping adding PO page to PDF due to invalid canvas or image data. Canvas W:${canvas.width} H:${canvas.height}, imgHeight:${imgHeight}, imgData length:${imgData.length}`);
+            }
+
             const pdfDataUrl = pdf.output('datauristring');
             pdf.save(`PO_${selectedPlan?.planName}_${containerCount}c.pdf`);
             await handleAddToHistory('po', pdfDataUrl);
