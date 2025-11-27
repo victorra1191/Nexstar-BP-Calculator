@@ -1,3 +1,5 @@
+
+
 import React, { useState, useRef, useEffect } from 'react';
 import BusinessPlan from './components/BusinessPlan';
 import PurchaseOrder from './components/PurchaseOrder';
@@ -20,7 +22,7 @@ import {
 import type { BusinessPlanData, ViewType, AppView, ExportHistoryItem, ExportHistoryItemWithUrl } from './types';
 import type { User } from 'firebase/auth';
 
-const APP_VERSION = "v2.2.4"; // Updated version to confirm deployment with Storage integration
+const APP_VERSION = "v2.2.5"; // Updated version to confirm deployment with enhanced image handling
 
 // Helper to convert File to Base64 (used for preview before upload to storage)
 const fileToBase64 = (file: File): Promise<string> =>
@@ -47,7 +49,7 @@ const PDFExportButton: React.FC<PDFExportButtonProps> = ({ onClick, isExporting,
         }
         return (
             <>
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 0 003 3h10a3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
                 Download PDF
             </>
         );
@@ -184,7 +186,7 @@ const App: React.FC = () => {
                                 setLogoStoragePath(data.logoStoragePath);
                             } catch (e: any) {
                                 console.warn(`Could not get download URL for logo ${data.logoStoragePath}:`, e);
-                                setSyncError(`Failed to load logo: ${e.message || 'Unknown error'}`);
+                                setSyncError(`Failed to load logo from storage: ${e.message || 'Unknown error'}. Check Storage Rules.`);
                                 setLogoUrl('');
                                 setLogoStoragePath(null);
                             }
@@ -202,7 +204,7 @@ const App: React.FC = () => {
                                         return { ...product, productImage: url };
                                     } catch (e: any) {
                                         console.warn(`Could not get download URL for ${product.productImage} for plan ${plan.id}:`, e);
-                                        setSyncError(`Failed to load image for ${product.nexstarModel}: ${e.message || 'Unknown error'}`);
+                                        setSyncError(`Failed to load image for ${product.nexstarModel}: ${e.message || 'Unknown error'}. Check Storage Rules.`);
                                         return { ...product, productImage: '' }; // Fallback to empty if URL fails
                                     }
                                 }
@@ -220,7 +222,7 @@ const App: React.FC = () => {
                                         return { ...product, productImage: url };
                                     } catch (e: any) {
                                         console.warn(`Could not get download URL for archived ${product.productImage} for plan ${plan.id}:`, e);
-                                        setSyncError(`Failed to load archived image for ${product.nexstarModel}: ${e.message || 'Unknown error'}`);
+                                        setSyncError(`Failed to load archived image for ${product.nexstarModel}: ${e.message || 'Unknown error'}. Check Storage Rules.`);
                                         return { ...product, productImage: '' }; // Fallback to empty if URL fails
                                     }
                                 }
@@ -239,7 +241,7 @@ const App: React.FC = () => {
                                     return { ...item, pdfDataUrl: url }; // Store public URL for display
                                 } catch (e: any) {
                                     console.warn(`Could not get download URL for PDF history item ${item.id}:`, e);
-                                    setSyncError(`Failed to load PDF for history item ${item.id}: ${e.message || 'Unknown error'}`);
+                                    setSyncError(`Failed to load PDF for history item ${item.id}: ${e.message || 'Unknown error'}. Check Storage Rules.`);
                                     return { ...item, pdfDataUrl: null }; // Fallback
                                 }
                             }
@@ -453,7 +455,7 @@ const App: React.FC = () => {
                         await deleteFileFromStorage(product.productImage); // Delete using path
                     } catch (error: any) {
                         console.error(`Error deleting product image ${product.productImage}:`, error);
-                        setSyncError(`Failed to delete product image ${product.nexstarModel}: ${error.message || 'Unknown error'}`);
+                        setSyncError(`Failed to delete product image ${product.nexstarModel}: ${error.message || 'Unknown error'}. Check Storage Rules.`);
                     }
                 }
             }
@@ -466,7 +468,7 @@ const App: React.FC = () => {
                         await deleteFileFromStorage(item.pdfStoragePath); // Delete using path
                     } catch (error: any) {
                         console.error(`Error deleting PDF ${item.pdfStoragePath}:`, error);
-                        setSyncError(`Failed to delete PDF history item ${item.id}: ${error.message || 'Unknown error'}`);
+                        setSyncError(`Failed to delete PDF history item ${item.id}: ${error.message || 'Unknown error'}. Check Storage Rules.`);
                     }
                 }
             }
@@ -531,8 +533,14 @@ const App: React.FC = () => {
             throw new Error("User not signed in. Cannot upload product image.");
         }
         const storagePath = `users/${user.uid}/product_images/${productId}_${file.name}_${new Date().getTime()}`;
-        const downloadUrl = await uploadFileToStorage(user.uid, file, storagePath);
-        return downloadUrl; // Return the URL to be stored in product data
+        try {
+            const downloadUrl = await uploadFileToStorage(user.uid, file, storagePath);
+            return downloadUrl; // Return the URL to be stored in product data
+        } catch (error: any) {
+            console.error("Error uploading product image to storage:", error);
+            // Re-throw to be caught by DataInputForm for product-specific error message
+            throw new Error(`Upload failed: ${error.message || 'Unknown error'}`); 
+        }
     };
 
 
@@ -864,7 +872,7 @@ const App: React.FC = () => {
                         <div className="flex items-center space-x-4">
                              <Logo className="h-10 w-10" />
                              <label htmlFor="logo-upload" className="cursor-pointer text-text-secondary hover:text-primary transition-colors group relative" title="Upload Company Logo">
-                                {logoUrl ? <img src={logoUrl} alt="Logo" className="h-10 w-10 bg-gray-100 p-1 rounded-md object-contain"/> : <div className="h-10 w-10 bg-secondary rounded-md flex items-center justify-center text-primary"><svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg></div>}
+                                {logoUrl ? <img src={logoUrl} alt="Logo" className="h-10 w-10 bg-gray-100 p-1 rounded-md object-contain"/> : <div className="h-10 w-10 bg-secondary rounded-md flex items-center justify-center text-primary"><svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 0 003 3h10a3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg></div>}
                                 <input id="logo-upload" type="file" className="hidden" accept="image/*" onChange={handleLogoUpload} />
                              </label>
                         </div>

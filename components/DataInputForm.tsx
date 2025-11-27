@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useMemo } from 'react';
 import type { BusinessPlanData, Product } from '../types';
 
@@ -68,6 +69,8 @@ interface DataInputFormProps {
 const DataInputForm: React.FC<DataInputFormProps> = ({ onSave, onCancel, initialData, onProductImageUpload }) => {
     const [formData, setFormData] = useState(getInitialFormState(initialData));
     const [previewImageUrls, setPreviewImageUrls] = useState<{ [productId: string]: string }>({}); // For immediate client-side preview
+    const [uploadingImageId, setUploadingImageId] = useState<string | null>(null); // Track image being uploaded
+    const [uploadErrors, setUploadErrors] = useState<{ [productId: string]: string }>({}); // Store upload errors per product
 
     useEffect(() => {
         setFormData(getInitialFormState(initialData));
@@ -77,6 +80,7 @@ const DataInputForm: React.FC<DataInputFormProps> = ({ onSave, onCancel, initial
             if (p.productImage) initialPreviews[p.id] = p.productImage;
         });
         setPreviewImageUrls(initialPreviews);
+        setUploadErrors({}); // Clear errors on form reset/initial load
     }, [initialData]);
 
     const calculatedData = useMemo(() => {
@@ -126,6 +130,13 @@ const DataInputForm: React.FC<DataInputFormProps> = ({ onSave, onCancel, initial
         if (e.target.files && e.target.files[0]) {
             const file = e.target.files[0];
             
+            setUploadingImageId(productId);
+            setUploadErrors(prev => {
+                const newErrors = { ...prev };
+                delete newErrors[productId]; // Clear previous error for this product
+                return newErrors;
+            });
+
             // Show immediate preview
             const previewUrl = await fileToBase64(file);
             setPreviewImageUrls(prev => ({ ...prev, [productId]: previewUrl }));
@@ -137,10 +148,12 @@ const DataInputForm: React.FC<DataInputFormProps> = ({ onSave, onCancel, initial
                     ...prev,
                     products: prev.products.map(p => p.id === productId ? { ...p, productImage: imageUrl } : p)
                 }));
-            } catch (error) {
+            } catch (error: any) {
                 console.error("Error uploading product image:", error);
-                alert("Failed to upload product image. Please try again.");
+                setUploadErrors(prev => ({ ...prev, [productId]: error.message || "Unknown upload error" }));
                 setPreviewImageUrls(prev => ({ ...prev, [productId]: '' })); // Clear preview on error
+            } finally {
+                setUploadingImageId(null);
             }
         }
     };
@@ -155,6 +168,16 @@ const DataInputForm: React.FC<DataInputFormProps> = ({ onSave, onCancel, initial
             return;
         }
         setFormData(prev => ({ ...prev, products: prev.products.filter(p => p.id !== productId) }));
+        setPreviewImageUrls(prev => { // Also remove preview URL
+            const newPreviews = { ...prev };
+            delete newPreviews[productId];
+            return newPreviews;
+        });
+        setUploadErrors(prev => { // Also remove any error
+            const newErrors = { ...prev };
+            delete newErrors[productId];
+            return newErrors;
+        });
     };
 
     const handleSubmit = (e: React.FormEvent) => {
@@ -209,8 +232,28 @@ const DataInputForm: React.FC<DataInputFormProps> = ({ onSave, onCancel, initial
                                                 <div className="w-24 h-24 rounded-md bg-secondary border border-gray-300 flex items-center justify-center">
                                                     {previewImageUrls[product.id] || product.productImage ? <img src={previewImageUrls[product.id] || product.productImage} alt="Preview" className="w-full h-full object-cover rounded-md" /> : <span className="text-xs text-text-secondary">Preview</span>}
                                                 </div>
-                                                <input type="file" onChange={(e) => handleImageFileChange(product.id, e)} accept="image/*" className="block w-full text-sm text-text-secondary file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20"/>
+                                                <input 
+                                                    type="file" 
+                                                    onChange={(e) => handleImageFileChange(product.id, e)} 
+                                                    accept="image/*" 
+                                                    className="block w-full text-sm text-text-secondary file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20"
+                                                    disabled={uploadingImageId === product.id} // Disable input while uploading
+                                                />
                                             </div>
+                                            {uploadingImageId === product.id && (
+                                                <p className="flex items-center text-sm text-primary mt-2">
+                                                    <svg className="animate-spin h-4 w-4 mr-2 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                                    </svg>
+                                                    Uploading...
+                                                </p>
+                                            )}
+                                            {uploadErrors[product.id] && (
+                                                <p className="text-sm text-danger mt-2">
+                                                    Error: {uploadErrors[product.id]}
+                                                </p>
+                                            )}
                                         </div>
                                     </div>
                                 </div>
