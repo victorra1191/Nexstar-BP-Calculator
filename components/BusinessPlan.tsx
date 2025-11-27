@@ -1,4 +1,5 @@
 
+
 import React, { forwardRef, useState } from 'react';
 import type { BusinessPlanData, Product } from '../types';
 
@@ -187,7 +188,7 @@ const BusinessPlan = forwardRef<HTMLDivElement, BusinessPlanProps>(
                 {product.productImage && 
                     <div className="flex justify-between items-center py-2.5 border-b border-gray-200/80 text-base">
                             <span className="text-gray-500">{T.productImage}</span>
-                            <img src={product.productImage} alt={product.nexstarModel} className="h-16 w-16 object-cover rounded-md border p-1" />
+                            <img src={product.productImage} alt={product.nexstarModel} className="h-16 w-16 object-cover rounded-md mb-4" />
                     </div>
                 }
                 <InfoItem label={T.originalSupplier} value={product.originalSupplier} />
@@ -222,7 +223,8 @@ const BusinessPlan = forwardRef<HTMLDivElement, BusinessPlanProps>(
             );
         }
 
-        if (data.aiSummary && data.aiSummary.startsWith('Failed to generate')) {
+        // Fix: Changed condition to check if summary starts with 'Failed' to show Retry button for all API errors
+        if (data.aiSummary && data.aiSummary.startsWith('Failed')) {
             return (
                 <div className="text-center text-sm">
                     <p className="text-danger font-semibold mb-2">{data.aiSummary}</p>
