@@ -124,35 +124,45 @@ const BusinessPlan = forwardRef<HTMLDivElement, BusinessPlanProps>(
 
     const primaryImage = data.products && data.products.length > 0 ? data.products[0].productImage : '';
     
-    const totalQty = data.products.reduce((acc, p) => acc + (p.qtyInContainer || 0), 0);
-    // Calculate total CBM to see if we should use volume-weighted distribution
-    const totalCbm = data.products.reduce((acc, p) => acc + ((p.qtyInContainer || 0) * (p.cbmPerUnit || 0)), 0);
+    // Calculate totalQty and totalCbm for the entire plan, as they are used in both original and new proportional freight calculations
+    const totalQtyInPlan = data.products.reduce((acc, p) => acc + (p.qtyInContainer || 0), 0);
+    const totalCbmInPlan = data.products.reduce((acc, p) => acc + ((p.qtyInContainer || 0) * (p.cbmPerUnit || 0)), 0);
 
     const productsOnPage1 = data.products.slice(0, 1);
     const productsOnPage2 = data.products.slice(1);
+
+    const TOTAL_CONTAINER_NOMINAL_CBM = 66; // Constant as per user's formula for consolidated freight calculation
 
     const renderProduct = (product: Product) => {
         let freightAllocatedPerUnit = 0;
         let destAllocatedPerUnit = 0;
         const qty = product.qtyInContainer || 0;
 
-        // Cost Allocation Logic
-        // If we have valid volume data (Total CBM > 0), distribute costs based on volume occupied.
-        // Otherwise, fall back to simple per-unit distribution.
-        if (totalCbm > 0 && (product.cbmPerUnit || 0) > 0) {
+        // Conditional logic for freight allocation based on consolidated vs. single product
+        if (data.products.length > 1) { // Consolidated Logic (apply new formula)
+            // Formula: ((product.cbmPerUnit / TOTAL_CONTAINER_NOMINAL_CBM) * freight value)
+            freightAllocatedPerUnit = ((product.cbmPerUnit || 0) / TOTAL_CONTAINER_NOMINAL_CBM) * (data.freightTotal || 0);
+        } else { // Single Product Logic (revert to original proportional logic, which simplifies for a single product)
+            if (totalCbmInPlan > 0 && (product.cbmPerUnit || 0) > 0) {
+                const productTotalCbm = qty * (product.cbmPerUnit || 0);
+                const shareOfContainer = productTotalCbm / totalCbmInPlan;
+                const totalFreightForProduct = (data.freightTotal || 0) * shareOfContainer;
+                freightAllocatedPerUnit = qty > 0 ? totalFreightForProduct / qty : 0;
+            } else {
+                // Fallback for single product if CBM is zero or totalQty is zero
+                freightAllocatedPerUnit = totalQtyInPlan > 0 ? (data.freightTotal || 0) / totalQtyInPlan : 0;
+            }
+        }
+        
+        // Destination costs distribution remains proportional by CBM (if available), or by quantity (fallback)
+        if (totalCbmInPlan > 0 && (product.cbmPerUnit || 0) > 0) {
              const productTotalCbm = qty * product.cbmPerUnit;
-             const shareOfContainer = productTotalCbm / totalCbm;
-             
-             // Total cost for this product line based on volume share
-             const totalFreightForProduct = data.freightTotal * shareOfContainer;
-             const totalDestForProduct = data.destinationCostsTotal * shareOfContainer;
-
-             freightAllocatedPerUnit = qty > 0 ? totalFreightForProduct / qty : 0;
+             const shareOfContainer = productTotalCbm / totalCbmInPlan;
+             const totalDestForProduct = (data.destinationCostsTotal || 0) * shareOfContainer;
              destAllocatedPerUnit = qty > 0 ? totalDestForProduct / qty : 0;
         } else {
              // Fallback: Average per unit
-             freightAllocatedPerUnit = totalQty > 0 ? data.freightTotal / totalQty : 0;
-             destAllocatedPerUnit = totalQty > 0 ? data.destinationCostsTotal / totalQty : 0;
+             destAllocatedPerUnit = totalQtyInPlan > 0 ? (data.destinationCostsTotal || 0) / totalQtyInPlan : 0;
         }
 
         const totalUnitCost = (product.fobCostUnit || 0) + freightAllocatedPerUnit + destAllocatedPerUnit;
@@ -171,7 +181,7 @@ const BusinessPlan = forwardRef<HTMLDivElement, BusinessPlanProps>(
                 <InfoItem label={T.originalSupplier} value={product.originalSupplier} />
                 <InfoItem label={T.supplierReference} value={product.supplierReference} />
                 <InfoItem label={T.qtyInContainer} value={`${qty.toLocaleString()} units`} />
-                {totalCbm > 0 && <InfoItem label="CBM Per Unit" value={`${(product.cbmPerUnit || 0).toFixed(3)} m³`} />}
+                {product.cbmPerUnit !== null && product.cbmPerUnit !== undefined && <InfoItem label="CBM Per Unit" value={`${(product.cbmPerUnit || 0).toFixed(3)} m³`} />}
                 <div className="mt-4 pt-4 border-t border-dashed border-gray-300">
                     <h5 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-2">{T.unitEconomics}</h5>
                     <InfoItem label={T.fobCost} value={product.fobCostUnit} isCurrency />
