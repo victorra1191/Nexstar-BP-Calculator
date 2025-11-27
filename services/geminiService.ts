@@ -1,9 +1,9 @@
 import { GoogleGenAI, HarmCategory, HarmBlockThreshold } from "@google/genai";
 import type { BusinessPlanData } from '../types';
 
-// Access the API key from Vite environment variables (Vercel)
-// This `process.env.API_KEY` is defined in vite.config.ts to take VITE_API_KEY
-const apiKey = process.env.API_KEY;
+// Access the API key specifically for Gemini from Vite environment variables (Vercel)
+// This `process.env.VITE_GEMINI_API_KEY` will be defined in vite.config.ts
+const apiKey = process.env.VITE_GEMINI_API_KEY;
 
 // Initialize conditionally to prevent crash if key is somehow missing
 const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
@@ -11,7 +11,7 @@ const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
 export const generateBusinessPlanSummary = async (data: BusinessPlanData): Promise<string> => {
     if (!ai || !apiKey) {
         console.error("[Gemini Error] API Key is missing for summary generation.");
-        return "Failed: API Key is missing. Please configure VITE_API_KEY in Vercel Environment Variables and Redeploy.";
+        return "Failed: Gemini API Key is missing. Please configure VITE_GEMINI_API_KEY in Vercel Environment Variables and Redeploy.";
     }
 
     const productList = data.products.map(p => `- ${p.nexstarModel} (${p.qtyInContainer} units)`).join('\n');
@@ -61,19 +61,23 @@ export const generateBusinessPlanSummary = async (data: BusinessPlanData): Promi
 
         // Handle specific Google API errors to provide actionable feedback
         if (errorMsg.includes('API_KEY_SERVICE_BLOCKED') || errorMsg.includes('GenerativeService.GenerateContent are blocked')) {
-            return "Failed: The API Key needs permission. Go to Google Cloud Console > Credentials > Edit Key > API Restrictions, and add 'Generative Language API' to the list. (Changes take 5 mins)";
+            return "Failed: The Gemini API Key needs permission. Go to Google Cloud Console > Credentials > Edit Key > API Restrictions, and add 'Generative Language API' to the list. (Changes take 5 mins)";
         }
         
         if (errorMsg.includes('PERMISSION_DENIED') || errorMsg.includes('403')) {
-            return "Failed: Access denied. Please check your API Key Restrictions in Google Cloud Console. Ensure 'Generative Language API' is checked. (Changes take 5 mins)";
+            // Updated message to be more specific to Gemini API key
+            if (errorMsg.includes('leaked')) {
+                return "Failed: Your Gemini API Key was reported as leaked. Please generate a new key and update VITE_GEMINI_API_KEY in Vercel. (Changes take 5 mins)";
+            }
+            return "Failed: Access denied for Gemini API. Please check your Gemini API Key Restrictions in Google Cloud Console. Ensure 'Generative Language API' is checked. (Changes take 5 mins)";
         }
         
         if (errorMsg.includes('unauthorized domain') || errorMsg.includes('domain restriction')) {
-            return "Failed: Access denied due to domain restrictions. In Google Cloud Console > Credentials > Edit Key > Application Restrictions (Websites), add your Vercel domain (e.g., https://your-app.vercel.app) or temporary 'None' restriction for debugging.";
+            return "Failed: Access denied due to domain restrictions for Gemini API. In Google Cloud Console > Credentials > Edit Key > Application Restrictions (Websites), add your Vercel domain (e.g., https://your-app.vercel.app) or temporary 'None' restriction for debugging.";
         }
         
         if (errorMsg.includes('429') || errorMsg.includes('quota')) {
-            return "Failed: Quota exceeded. Please try again later.";
+            return "Failed: Quota exceeded for Gemini API. Please try again later.";
         }
 
         return `Failed to generate summary: ${errorMsg}`;
@@ -83,7 +87,7 @@ export const generateBusinessPlanSummary = async (data: BusinessPlanData): Promi
 export const translateTextToChinese = async (textToTranslate: string): Promise<string> => {
     if (!ai || !apiKey) {
         console.error("[Gemini Error] API Key is missing for translation.");
-        return "Translation failed: API Key is missing.";
+        return "Translation failed: Gemini API Key is missing.";
     }
 
     const prompt = `
@@ -122,11 +126,11 @@ export const translateTextToChinese = async (textToTranslate: string): Promise<s
         const errorMsg = error.message || String(error);
         
         if (errorMsg.includes('API_KEY_SERVICE_BLOCKED') || errorMsg.includes('PERMISSION_DENIED')) {
-             return "Translation failed: Check API Key Restrictions in Google Cloud. (Changes take 5 mins)";
+             return "Translation failed: Check Gemini API Key Restrictions in Google Cloud. (Changes take 5 mins)";
         }
 
         if (errorMsg.includes('unauthorized domain') || errorMsg.includes('domain restriction')) {
-            return "Translation failed: Access denied due to domain restrictions. In Google Cloud Console > Credentials > Edit Key > Application Restrictions (Websites), add your Vercel domain (e.g., https://your-app.vercel.app) or temporary 'None' restriction for debugging.";
+            return "Translation failed: Access denied due to domain restrictions for Gemini API. In Google Cloud Console > Credentials > Edit Key > Application Restrictions (Websites), add your Vercel domain (e.g., https://your-app.vercel.app) or temporary 'None' restriction for debugging.";
         }
         
         return "Translation failed. Please try again.";

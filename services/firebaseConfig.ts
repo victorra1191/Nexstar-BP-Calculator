@@ -1,4 +1,3 @@
-
 import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
@@ -9,7 +8,7 @@ import { getStorage } from 'firebase/storage'; // Import getStorage
 // For Firebase Hosting, this configuration can often be injected automatically at deploy time.
 // FIX: Export firebaseConfig so it can be imported by vite.config.ts
 export const firebaseConfig = {
-  apiKey: "AIzaSyBBPymwl4qc4KPUZRBD0dVaXQ5n6iDj48c", // NEW KEY
+  apiKey: process.env.VITE_FIREBASE_API_KEY || "AIzaSyBBPymwl4qc4KPUZRBD0dVaXQ5n6iDj48c", // Use env var for Firebase API Key
   authDomain: "gen-lang-client-0949923939.firebaseapp.com",
   projectId: "gen-lang-client-0949923939",
   storageBucket: "gen-lang-client-0949923939.firebasestorage.app", // CORRECTED BUCKET NAME!

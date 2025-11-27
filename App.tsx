@@ -1,5 +1,4 @@
 
-
 import React, { useState, useRef, useEffect } from 'react';
 import BusinessPlan from './components/BusinessPlan';
 import PurchaseOrder from './components/PurchaseOrder';
@@ -22,7 +21,7 @@ import {
 import type { BusinessPlanData, ViewType, AppView, ExportHistoryItem, ExportHistoryItemWithUrl } from './types';
 import type { User } from 'firebase/auth';
 
-const APP_VERSION = "v2.2.8"; // Updated version for CORS fix and SVG paths
+const APP_VERSION = "v2.2.9"; // Updated version for API Key separation
 
 // Helper to convert File to Base64 (used for preview before upload to storage)
 const fileToBase64 = (file: File): Promise<string> =>
@@ -50,7 +49,7 @@ const PDFExportButton: React.FC<PDFExportButtonProps> = ({ onClick, isExporting,
         return (
             <>
                 {/* Updated SVG path to a well-formed version */}
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v12m0 0l-4-4m4 4l4-4m-4 4V4m-8 8v4a3 3 0 003 3h10a3 3 0 003-3v-4" /></svg>
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v12m0 0l-4-4m4 4l4-4m-4 4V4m-8 8v4a3 0 003 3h10a3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4m-8 8v4a3 0 003 3h10a3 0 003-3v-4" /></svg>
                 Download PDF
             </>
         );
@@ -229,6 +228,7 @@ const App: React.FC = () => {
                                 }
                                 return product;
                             }));
+                            // Fix: Corrected typo from productsWithMigigatedImages to productsWithMigratedImages
                             return { ...plan, products: productsWithMigratedImages };
                         }));
                         setPlans(plansWithImages);
@@ -1001,7 +1001,7 @@ const App: React.FC = () => {
                      <div className="flex items-center space-x-4">
                         {appView !== 'dashboard' && (
                             <button onClick={() => { setAppView('dashboard'); setFormInitialData(undefined); }} className="text-text-secondary hover:bg-secondary p-2 rounded-full text-sm font-medium transition-colors hover:text-primary" aria-label="Back to dashboard">
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6z" /></svg>
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 0 01-2 2h-2a2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 0 012 2v2a2 0 01-2 2H6a2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 0 012 2v2a2 0 01-2 2h-2a2 0 01-2-2V6z" /></svg>
                             </button>
                         )}
                         <div className="h-8 w-px bg-gray-200 mx-2"></div>

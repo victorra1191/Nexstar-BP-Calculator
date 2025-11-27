@@ -1,21 +1,18 @@
-
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
-import { firebaseConfig } from './services/firebaseConfig'; // Import your Firebase config
+// Removed direct import of firebaseConfig here as its API key will now come from an env var.
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, (process as any).cwd(), '');
 
-  // Prioritize Vercel env var, fallback to firebaseConfig.apiKey if VITE_API_KEY is not set.
-  // This ensures there's always an API key available, even if Vercel env is not fully configured.
-  const apiKeyToInject = env.VITE_API_KEY || firebaseConfig.apiKey;
-
   return {
     plugins: [react()],
     define: {
-      // Injects the API Key directly into the client-side code as a string literal.
-      // This maps VITE_API_KEY (from Vercel) or the fallback directly to process.env.API_KEY.
-      'process.env.API_KEY': JSON.stringify(apiKeyToInject)
+      // Injects separate API Keys for Firebase and Gemini.
+      // These will map to environment variables set in Vercel.
+      // No fallback to hardcoded keys here; if env vars aren't set, it will be undefined in the app.
+      'process.env.VITE_FIREBASE_API_KEY': JSON.stringify(env.VITE_FIREBASE_API_KEY),
+      'process.env.VITE_GEMINI_API_KEY': JSON.stringify(env.VITE_GEMINI_API_KEY)
     },
     build: {
       chunkSizeWarningLimit: 1600
