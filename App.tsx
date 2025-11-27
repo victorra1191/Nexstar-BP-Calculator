@@ -21,7 +21,7 @@ import {
 import type { BusinessPlanData, ViewType, AppView, ExportHistoryItem, ExportHistoryItemWithUrl } from './types';
 import type { User } from 'firebase/auth';
 
-const APP_VERSION = "v2.2.9"; // Updated version for API Key separation
+const APP_VERSION = "v2.2.10"; // Updated version for PDF size optimization
 
 // Helper to convert File to Base64 (used for preview before upload to storage)
 const fileToBase64 = (file: File): Promise<string> =>
@@ -49,7 +49,7 @@ const PDFExportButton: React.FC<PDFExportButtonProps> = ({ onClick, isExporting,
         return (
             <>
                 {/* Updated SVG path to a well-formed version */}
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v12m0 0l-4-4m4 4l4-4m-4 4V4m-8 8v4a3 0 003 3h10a3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4m-8 8v4a3 0 003 3h10a3 0 003-3v-4" /></svg>
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v12m0 0l-4-4m4 4l4-4m-4 4V4m-8 8v4a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4m-8 8v4a3 3 0 003 3h10a3 3 0 003-3v-4" /></svg>
                 Download PDF
             </>
         );
@@ -228,7 +228,6 @@ const App: React.FC = () => {
                                 }
                                 return product;
                             }));
-                            // Fix: Corrected typo from productsWithMigigatedImages to productsWithMigratedImages
                             return { ...plan, products: productsWithMigratedImages };
                         }));
                         setPlans(plansWithImages);
@@ -249,6 +248,7 @@ const App: React.FC = () => {
                                 }
                                 return product;
                             }));
+                            // Fix: Corrected typo 'productsWithMigigatedImages' to 'productsWithMigratedImages'
                             return { ...plan, products: productsWithMigratedImages };
                         }));
                         setArchivedPlans(archivedPlansWithImages);
@@ -752,22 +752,22 @@ const App: React.FC = () => {
             const pdf = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
             const pdfWidth = pdf.internal.pageSize.getWidth();
             const contentWidth = pdfWidth - MARGIN * 2;
-            const canvasOptions = { scale: 3, useCORS: true, logging: false, backgroundColor: '#ffffff' };
+            const canvasOptions = { scale: 2, useCORS: true, logging: false, backgroundColor: '#ffffff' }; // Scale reduced to 2, output as JPEG
             const page1 = reportContainer.querySelector<HTMLElement>('#bp-page-1');
             const page2 = reportContainer.querySelector<HTMLElement>('#bp-page-2');
             if (page1) {
                 const canvas1 = await html2canvas(page1, canvasOptions);
-                const imgData1 = canvas1.toDataURL('image/png', 1.0);
+                const imgData1 = canvas1.toDataURL('image/jpeg', 0.8); // Changed to JPEG, quality 0.8
                 const imgHeight1 = (canvas1.height * contentWidth) / canvas1.width;
-                pdf.addImage(imgData1, 'PNG', MARGIN, MARGIN, contentWidth, imgHeight1);
+                pdf.addImage(imgData1, 'JPEG', MARGIN, MARGIN, contentWidth, imgHeight1);
                 console.log("[PDF Export] Page 1 (English) added to PDF.");
             }
             if (page2) {
                 pdf.addPage();
                 const canvas2 = await html2canvas(page2, canvasOptions);
-                const imgData2 = canvas2.toDataURL('image/png', 1.0);
+                const imgData2 = canvas2.toDataURL('image/jpeg', 0.8); // Changed to JPEG, quality 0.8
                 const imgHeight2 = (canvas2.height * contentWidth) / canvas2.width;
-                pdf.addImage(imgData2, 'PNG', MARGIN, MARGIN, contentWidth, imgHeight2);
+                pdf.addImage(imgData2, 'JPEG', MARGIN, MARGIN, contentWidth, imgHeight2);
                 console.log("[PDF Export] Page 2 (English) added to PDF.");
             }
             if (reportContainerChinese && selectedPlan?.aiSummaryChinese && !selectedPlan.aiSummaryChinese.startsWith('Translation failed')) { // Only add Chinese if summary exists and isn't an error
@@ -776,17 +776,17 @@ const App: React.FC = () => {
                  if (page1_zh) {
                     pdf.addPage();
                     const canvas1_zh = await html2canvas(page1_zh, canvasOptions);
-                    const imgData1_zh = canvas1_zh.toDataURL('image/png', 1.0);
+                    const imgData1_zh = canvas1_zh.toDataURL('image/jpeg', 0.8); // Changed to JPEG, quality 0.8
                     const imgHeight1_zh = (canvas1_zh.height * contentWidth) / canvas1_zh.width;
-                    pdf.addImage(imgData1_zh, 'PNG', MARGIN, MARGIN, contentWidth, imgHeight1_zh);
+                    pdf.addImage(imgData1_zh, 'JPEG', MARGIN, MARGIN, contentWidth, imgHeight1_zh);
                     console.log("[PDF Export] Page 1 (Chinese) added to PDF.");
                  }
                  if (page2_zh) {
                     pdf.addPage();
                     const canvas2_zh = await html2canvas(page2_zh, canvasOptions);
-                    const imgData2_zh = canvas2_zh.toDataURL('image/png', 1.0);
+                    const imgData2_zh = canvas2_zh.toDataURL('image/jpeg', 0.8); // Changed to JPEG, quality 0.8
                     const imgHeight2_zh = (canvas2_zh.height * contentWidth) / canvas2_zh.width;
-                    pdf.addImage(imgData2_zh, 'PNG', MARGIN, MARGIN, contentWidth, imgHeight2_zh);
+                    pdf.addImage(imgData2_zh, 'JPEG', MARGIN, MARGIN, contentWidth, imgHeight2_zh);
                     console.log("[PDF Export] Page 2 (Chinese) added to PDF.");
                  }
             }
@@ -814,13 +814,13 @@ const App: React.FC = () => {
         input.className = originalClassName.replace(/animate-[a-z-]+/g, ' ');
         try {
             const MARGIN = 40; 
-            const canvas = await html2canvas(input, { scale: 3, useCORS: true, logging: false, backgroundColor: '#ffffff' });
-            const imgData = canvas.toDataURL('image/png', 1.0);
+            const canvas = await html2canvas(input, { scale: 2, useCORS: true, logging: false, backgroundColor: '#ffffff' }); // Scale reduced to 2, output as JPEG
+            const imgData = canvas.toDataURL('image/jpeg', 0.8); // Changed to JPEG, quality 0.8
             const pdf = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
             const pdfWidth = pdf.internal.pageSize.getWidth();
             const contentWidth = pdfWidth - MARGIN * 2;
             const imgHeight = (canvas.height * contentWidth) / canvas.width;
-            pdf.addImage(imgData, 'PNG', MARGIN, MARGIN, contentWidth, imgHeight);
+            pdf.addImage(imgData, 'JPEG', MARGIN, MARGIN, contentWidth, imgHeight);
             const pdfDataUrl = pdf.output('datauristring');
             pdf.save(`PO_${selectedPlan?.planName}_${containerCount}c.pdf`);
             await handleAddToHistory('po', pdfDataUrl);
@@ -992,7 +992,7 @@ const App: React.FC = () => {
                         <div className="flex items-center space-x-4">
                              <Logo className="h-10 w-10" />
                              <label htmlFor="logo-upload" className="cursor-pointer text-text-secondary hover:text-primary transition-colors group relative" title="Upload Company Logo">
-                                {logoUrl ? <img src={logoUrl} alt="Logo" className="h-10 w-10 bg-gray-100 p-1 rounded-md object-contain"/> : <div className="h-10 w-10 bg-secondary rounded-md flex items-center justify-center text-primary"><svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 0 003 3h10a3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg></div>}
+                                {logoUrl ? <img src={logoUrl} alt="Logo" className="h-10 w-10 bg-gray-100 p-1 rounded-md object-contain"/> : <div className="h-10 w-10 bg-secondary rounded-md flex items-center justify-center text-primary"><svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg></div>}
                                 <input id="logo-upload" type="file" className="hidden" accept="image/*" onChange={handleLogoUpload} />
                              </label>
                         </div>
@@ -1001,7 +1001,7 @@ const App: React.FC = () => {
                      <div className="flex items-center space-x-4">
                         {appView !== 'dashboard' && (
                             <button onClick={() => { setAppView('dashboard'); setFormInitialData(undefined); }} className="text-text-secondary hover:bg-secondary p-2 rounded-full text-sm font-medium transition-colors hover:text-primary" aria-label="Back to dashboard">
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 0 01-2 2h-2a2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 0 012 2v2a2 0 01-2 2H6a2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 0 012 2v2a2 0 01-2 2h-2a2 0 01-2-2V6z" /></svg>
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6z" /></svg>
                             </button>
                         )}
                         <div className="h-8 w-px bg-gray-200 mx-2"></div>
