@@ -1,25 +1,12 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
-import { getStorage } from 'firebase/storage'; // Import getStorage
-
-// IMPORTANT: This configuration is for your specific Firebase project.
-// It's a best practice NOT to commit API keys to a public GitHub repository.
-// For Firebase Hosting, this configuration can often be injected automatically at deploy time.
-// FIX: Export firebaseConfig so it can be imported by vite.config.ts
-export const firebaseConfig = {
-  apiKey: process.env.VITE_FIREBASE_API_KEY || "AIzaSyBBPymwl4qc4KPUZRBD0dVaXQ5n6iDj48c", // Use env var for Firebase API Key
-  authDomain: "gen-lang-client-0949923939.firebaseapp.com",
-  projectId: "gen-lang-client-0949923939",
-  storageBucket: "gen-lang-client-0949923939.firebasestorage.app", // CORRECTED BUCKET NAME!
-  messagingSenderId: "517665894104",
-  appId: "1:517665894104:web:6f23cbba56d9dac932b1ad",
-  measurementId: "G-V4RN5DFVCT"
-};
+import { getStorage } from 'firebase/storage';
+import firebaseConfig from '../firebase-applet-config.json';
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 
 export const auth = getAuth(app);
-export const db = getFirestore(app);
-export const storage = getStorage(app); // Export storage instance
+export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId); // Use specific database ID
+export const storage = getStorage(app);

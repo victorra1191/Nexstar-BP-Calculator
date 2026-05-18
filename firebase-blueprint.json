@@ -1,0 +1,39 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile data including plans and exports",
+      "type": "object",
+      "properties": {
+        "plans": {
+          "type": "array",
+          "description": "Active business plans"
+        },
+        "archivedPlans": {
+          "type": "array",
+          "description": "Archived business plans"
+        },
+        "logoStoragePath": {
+          "type": "string",
+          "description": "Path to user logo in Firebase Storage"
+        },
+        "poCounter": {
+          "type": "number",
+          "description": "Counter for purchase orders"
+        },
+        "exportHistory": {
+          "type": "array",
+          "description": "History of exported PDFs"
+        }
+      }
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": {
+        "$ref": "#/entities/User"
+      },
+      "description": "User profile and data"
+    }
+  }
+}
