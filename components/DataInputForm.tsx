@@ -28,7 +28,7 @@ const createNewProduct = (): Product => ({
 const getInitialFormState = (initialData?: BusinessPlanData): Omit<BusinessPlanData, 'id' | 'aiSummary' | 'createdAt' | 'updatedAt' | 'totalUnitCost' | 'unitSalesMargin' | 'grossSalesMarginPercent' | 'grossMarkupPercent' | 'netMarkupPercent' | 'totalInvestment' | 'totalSales' | 'totalProfit' | 'interest15Percent' | 'netProfit' | 'netSalesMarginPercent'> => {
     if (initialData) {
         const { id, aiSummary, createdAt, updatedAt, ...rest } = initialData;
-        const financialDataStripped = { planName: rest.planName, destination: rest.destination, containerType: rest.containerType, freightTotal: rest.freightTotal, destinationCostsTotal: rest.destinationCostsTotal, products: rest.products };
+        const financialDataStripped = { planName: rest.planName, destination: rest.destination, containerType: rest.containerType, containerCount: rest.containerCount || 1, freightTotal: rest.freightTotal, destinationCostsTotal: rest.destinationCostsTotal, products: rest.products };
         return financialDataStripped;
     };
 
@@ -36,6 +36,7 @@ const getInitialFormState = (initialData?: BusinessPlanData): Omit<BusinessPlanD
         planName: 'Consolidated Container Plan',
         destination: 'Mariel, CU',
         containerType: "40' HC",
+        containerCount: 1,
         freightTotal: 5000.00,
         destinationCostsTotal: 400.00,
         products: [createNewProduct()],
@@ -194,9 +195,10 @@ const DataInputForm: React.FC<DataInputFormProps> = ({ onSave, onCancel, initial
                         <h3 className="text-2xl font-semibold text-primary mb-5">Container Details</h3>
                         <div className="space-y-5">
                             <InputField label="Plan Name / ID" id="planName" value={formData.planName} onChange={handleContainerChange} />
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
                                 <InputField label="Destination" id="destination" value={formData.destination} onChange={handleContainerChange} />
                                 <InputField label="Container Type" id="containerType" value={formData.containerType} onChange={handleContainerChange} />
+                                <InputField label="Qty of Containers" id="containerCount" type="number" step="1" value={formData.containerCount || 1} onChange={handleContainerChange} />
                             </div>
                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                                 <InputField label="Freight (Total)" id="freightTotal" type="number" step="0.01" value={formData.freightTotal} onChange={handleContainerChange} />
@@ -281,6 +283,17 @@ const DataInputForm: React.FC<DataInputFormProps> = ({ onSave, onCancel, initial
                     <CalculatedField label="Net Profit" value={calculatedData.netProfit} isCurrency valueClass="text-accent font-bold text-lg" />
                     <CalculatedField label="Net Sales Margin" value={calculatedData.netSalesMarginPercent} isPercent valueClass="text-accent font-bold" />
                     <CalculatedField label="Net Markup" value={calculatedData.netMarkupPercent} isPercent valueClass="text-accent font-bold" />
+                    
+                    {(formData.containerCount || 1) > 1 && (
+                        <div className="mt-8 pt-6 border-t border-white/40">
+                            <h3 className="text-xl font-bold text-primary mb-4">Total ({formData.containerCount} Containers)</h3>
+                            <CalculatedField label="Total Investment" value={calculatedData.totalInvestment * (formData.containerCount || 1)} isCurrency />
+                            <CalculatedField label="Total Sales" value={calculatedData.totalSales * (formData.containerCount || 1)} isCurrency />
+                            <CalculatedField label="Total Profit" value={calculatedData.totalProfit * (formData.containerCount || 1)} isCurrency valueClass="text-accent font-semibold" />
+                            <CalculatedField label="Interest (15%)" value={calculatedData.interest15Percent * (formData.containerCount || 1)} isCurrency valueClass="text-danger font-semibold" />
+                            <CalculatedField label="Net Profit" value={calculatedData.netProfit * (formData.containerCount || 1)} isCurrency valueClass="text-accent font-bold text-lg" />
+                        </div>
+                    )}
                 </div>
             </div>
             

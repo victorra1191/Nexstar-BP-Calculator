@@ -17,6 +17,7 @@ export interface BusinessPlanData {
   planName: string;
   destination: string;
   containerType: string;
+  containerCount?: number;
   freightTotal: number;
   destinationCostsTotal: number;
   products: Product[];

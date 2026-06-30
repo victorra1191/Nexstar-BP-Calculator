@@ -308,19 +308,19 @@ const BusinessPlan = forwardRef<HTMLDivElement, BusinessPlanProps>(
                     
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-8 mb-12">
                         <div>
-                            <h2 className="text-xl font-semibold mb-4 text-gray-700">{T.salesOverview}</h2>
+                            <h2 className="text-xl font-semibold mb-4 text-gray-700">{T.salesOverview} {(data.containerCount || 1) > 1 ? `(${data.containerCount} Containers)` : ''}</h2>
                             <div className="space-y-4">
-                                <OverviewMetricCard title={T.totalSales} value={`$${(data.totalSales || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} colorClass="bg-blue-50" />
-                                <OverviewMetricCard title={T.grossProfit} value={`$${(data.totalProfit || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} colorClass="bg-green-50" />
-                                <OverviewMetricCard title={T.interest} value={`$${(data.interest15Percent || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} colorClass="bg-orange-50" />
-                                <OverviewMetricCard title={T.netProfit} value={`$${(data.netProfit || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} colorClass="bg-teal-50" />
+                                <OverviewMetricCard title={T.totalSales} value={`$${((data.totalSales || 0) * (data.containerCount || 1)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} colorClass="bg-blue-50" />
+                                <OverviewMetricCard title={T.grossProfit} value={`$${((data.totalProfit || 0) * (data.containerCount || 1)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} colorClass="bg-green-50" />
+                                <OverviewMetricCard title={T.interest} value={`$${((data.interest15Percent || 0) * (data.containerCount || 1)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} colorClass="bg-orange-50" />
+                                <OverviewMetricCard title={T.netProfit} value={`$${((data.netProfit || 0) * (data.containerCount || 1)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} colorClass="bg-teal-50" />
                                 <OverviewMetricCard title={T.netSalesMargin} value={`${(data.netSalesMarginPercent || 0).toFixed(2)}%`} colorClass="bg-white" />
                             </div>
                         </div>
                         <div>
-                            <h2 className="text-xl font-semibold mb-4 text-gray-700">{T.costOverview}</h2>
+                            <h2 className="text-xl font-semibold mb-4 text-gray-700">{T.costOverview} {(data.containerCount || 1) > 1 ? `(${data.containerCount} Containers)` : ''}</h2>
                             <div className="space-y-4">
-                                <OverviewMetricCard title={T.totalInvestment} value={`$${(data.totalInvestment || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} colorClass="bg-red-50" />
+                                <OverviewMetricCard title={T.totalInvestment} value={`$${((data.totalInvestment || 0) * (data.containerCount || 1)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} colorClass="bg-red-50" />
                                 <OverviewMetricCard title={T.avgUnitCost} value={`$${(data.totalUnitCost || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} colorClass="bg-gray-100" />
                                 <OverviewMetricCard title={T.grossMarkup} value={`${(data.grossMarkupPercent || 0).toFixed(2)}%`} colorClass="bg-white" />
                             </div>
@@ -355,6 +355,18 @@ const BusinessPlan = forwardRef<HTMLDivElement, BusinessPlanProps>(
                             <InfoItem label={T.netSalesMargin} value={data.netSalesMarginPercent} isPercent />
                             <InfoItem label={T.netMarkup} value={data.netMarkupPercent} isPercent />
                         </FinancialTable>
+
+                        {(data.containerCount || 1) > 1 && (
+                            <div className="mt-8">
+                                <FinancialTable title={`Total Consolidated (${data.containerCount} Containers)`}>
+                                    <InfoItem label={T.totalInvestment} value={(data.totalInvestment || 0) * (data.containerCount || 1)} isCurrency />
+                                    <InfoItem label={T.totalSales} value={(data.totalSales || 0) * (data.containerCount || 1)} isCurrency />
+                                    <InfoItem label={T.grossProfit} value={(data.totalProfit || 0) * (data.containerCount || 1)} isCurrency />
+                                    <InfoItem label={T.interest15} value={(data.interest15Percent || 0) * (data.containerCount || 1)} isCurrency valueClass="text-danger" />
+                                    <InfoItem label={T.netProfit} value={(data.netProfit || 0) * (data.containerCount || 1)} isCurrency valueClass="font-bold text-accent" />
+                                </FinancialTable>
+                            </div>
+                        )}
                     </section>
                 </main>
             </div>
