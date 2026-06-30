@@ -19,7 +19,7 @@ import {
     type UserData 
 } from './services/firestoreService';
 import type { BusinessPlanData, ViewType, AppView, ExportHistoryItem, ExportHistoryItemWithUrl } from './types';
-import type { User } from 'firebase/auth';
+import type { User } from './services/firestoreService';
 
 const APP_VERSION = "v2.2.12"; // Updated version for PDF export robustness and app loading fixes
 
