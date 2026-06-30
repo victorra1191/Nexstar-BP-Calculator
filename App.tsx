@@ -976,16 +976,16 @@ const App: React.FC = () => {
 
     if (!user) {
         return (
-            <div className="min-h-screen flex flex-col items-center justify-center bg-background p-4 animate-fade-in">
-                <div className="bg-surface p-8 rounded-xl shadow-2xl max-w-md w-full text-center border border-gray-200">
-                    <Logo className="h-20 w-20 mx-auto mb-6 animate-float" />
-                    <h1 className="text-3xl font-bold text-primary mb-2">Nexstar Planner</h1>
-                    <p className="text-text-secondary mb-8">Sign in to manage your business plans securely in the cloud.</p>
-                    <button onClick={handleLogin} className="w-full bg-white border border-gray-300 text-text-primary font-bold py-3 px-4 rounded-lg hover:bg-gray-50 transition-all flex items-center justify-center space-x-3 shadow-sm hover:shadow-md">
+            <div className="min-h-screen flex flex-col items-center justify-center p-4 animate-fade-in relative z-10">
+                <div className="bg-white/40 backdrop-blur-xl p-8 rounded-3xl shadow-2xl max-w-md w-full text-center border border-white/60">
+                    <Logo className="h-20 w-20 mx-auto mb-6 animate-float drop-shadow-xl" />
+                    <h1 className="text-4xl font-bold text-primary mb-2 tracking-tight">Nexstar Planner</h1>
+                    <p className="text-text-secondary mb-8 font-medium">Sign in to manage your business plans securely in the cloud.</p>
+                    <button onClick={handleLogin} className="w-full bg-white/70 backdrop-blur-md border border-white/60 text-text-primary font-bold py-3 px-4 rounded-2xl hover:bg-white hover:scale-[1.02] transition-all duration-300 flex items-center justify-center space-x-3 shadow-lg">
                         <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" className="h-6 w-6" />
                         <span>Sign in with Google</span>
                     </button>
-                    <div className="mt-8 text-xs text-text-secondary">
+                    <div className="mt-8 text-xs text-text-secondary font-medium">
                         <p>App Version: {APP_VERSION}</p>
                     </div>
                 </div>
@@ -995,14 +995,14 @@ const App: React.FC = () => {
 
     // Main App
     return (
-        <div className="bg-background min-h-screen font-sans text-text-primary">
+        <div className="min-h-screen font-sans text-text-primary relative z-10">
             {syncError && (
                 <div className="bg-danger text-white text-center py-2 px-4 text-sm font-bold shadow-md break-words">
                     ⚠️ {syncError}
                     <button onClick={() => setSyncError(null)} className="ml-4 text-white text-opacity-80 hover:text-opacity-100 font-normal underline">Dismiss</button>
                 </div>
             )}
-            <header className="bg-surface/80 backdrop-blur-sm shadow-sm sticky top-0 z-10 border-b border-gray-200">
+            <header className="bg-white/40 backdrop-blur-xl shadow-sm sticky top-0 z-10 border-b border-white/50">
                 <div className="container mx-auto px-4 sm:px-6 py-3 flex justify-between items-center">
                     <div className="flex items-center space-x-4">
                         <div className="flex items-center space-x-4">

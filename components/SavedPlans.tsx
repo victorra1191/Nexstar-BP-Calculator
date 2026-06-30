@@ -52,8 +52,8 @@ const SavedPlans: React.FC<SavedPlansProps> = ({ plans, archivedPlans, history, 
         : null;
 
     return (
-        <div className="bg-surface p-6 sm:p-8 rounded-xl shadow-lg border border-gray-200 animate-fade-in">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 border-b border-gray-200 pb-4">
+        <div className="bg-surface backdrop-blur-xl p-6 sm:p-8 rounded-3xl shadow-2xl border border-white/50 animate-fade-in">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 border-b border-gray-200/50 pb-4">
                 <div>
                     <h2 className="text-3xl font-bold text-text-primary mb-1">Business Plans</h2>
                     {lastUpdatedDate && (
@@ -68,7 +68,7 @@ const SavedPlans: React.FC<SavedPlansProps> = ({ plans, archivedPlans, history, 
             </div>
 
             {plans.length === 0 ? (
-                <div className="text-center py-20 px-6 bg-background rounded-lg border border-gray-200">
+                <div className="text-center py-20 px-6 bg-white/40 rounded-3xl border border-white/50 backdrop-blur-sm shadow-inner">
                     <EmptyIcon />
                     <h3 className="text-2xl font-bold text-text-primary mt-6">No Saved Plans Yet</h3>
                     <p className="text-text-secondary mt-2 max-w-md mx-auto">It looks like you haven't created any business plans yet. Let's change that!</p>
@@ -80,12 +80,12 @@ const SavedPlans: React.FC<SavedPlansProps> = ({ plans, archivedPlans, history, 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {plans.map((plan, index) => (
                         <div key={plan.id} 
-                             className={`border border-gray-200 rounded-lg shadow-md flex flex-col justify-between bg-surface hover:-translate-y-1 hover:shadow-xl hover:border-primary/50 transition-all duration-300 group ${archivingId === plan.id ? 'opacity-0 scale-95' : ''}`}
+                             className={`border border-white/60 rounded-3xl shadow-xl flex flex-col justify-between bg-white/60 backdrop-blur-md hover:-translate-y-1 hover:shadow-2xl hover:border-white transition-all duration-300 group ${archivingId === plan.id ? 'opacity-0 scale-95' : ''}`}
                              style={{ animation: `slideInUp 0.5s ${index * 0.1}s ease-out forwards`, opacity: 0 }}>
-                            <div className="p-4 cursor-pointer" onClick={() => onSelectPlan(plan.id)}>
+                            <div className="p-5 cursor-pointer" onClick={() => onSelectPlan(plan.id)}>
                                 {plan.products[0]?.productImage ? 
-                                    <img src={plan.products[0].productImage} alt={plan.planName} className="w-full h-32 object-cover rounded-md mb-4"/> : 
-                                    <div className="w-full h-32 bg-secondary rounded-md mb-4 flex items-center justify-center text-sm text-text-secondary">No Image</div>
+                                    <img src={plan.products[0].productImage} alt={plan.planName} className="w-full h-32 object-cover rounded-2xl mb-4"/> : 
+                                    <div className="w-full h-32 bg-secondary/50 rounded-2xl mb-4 flex items-center justify-center text-sm text-text-secondary">No Image</div>
                                 }
                                 <h3 className="font-bold text-text-primary text-lg truncate group-hover:text-primary transition-colors">{plan.planName}</h3>
                                 <p className="text-sm text-text-secondary">{plan.products.length} {plan.products.length > 1 ? 'Products' : 'Product'}</p>
@@ -96,7 +96,7 @@ const SavedPlans: React.FC<SavedPlansProps> = ({ plans, archivedPlans, history, 
                                     <p className="flex justify-between"><span>Net Profit:</span> <span className="font-bold text-accent">${(plan.netProfit || 0).toLocaleString('en-US', {minimumFractionDigits: 2})}</span></p>
                                 </div>
                             </div>
-                            <div className="flex items-center justify-between p-3 bg-background border-t border-gray-200 rounded-b-lg">
+                            <div className="flex items-center justify-between p-3 bg-white/40 border-t border-white/40 rounded-b-3xl">
                                 <div className="flex space-x-1">
                                     <button onClick={(e) => handleArchiveClick(e, plan.id)} className="text-sm text-text-secondary hover:text-orange-600 p-2 rounded-md hover:bg-orange-100" aria-label={`Archive plan ${plan.planName}`} title="Archive">
                                         <ArchiveIcon />
@@ -124,7 +124,7 @@ const SavedPlans: React.FC<SavedPlansProps> = ({ plans, archivedPlans, history, 
                     </div>
                      <div className="space-y-3">
                         {archivedPlans.map(plan => (
-                            <div key={plan.id} className="bg-background/70 p-4 rounded-lg flex flex-col sm:flex-row justify-between items-start sm:items-center border border-gray-200/80 hover:bg-background transition-colors opacity-80 hover:opacity-100">
+                            <div key={plan.id} className="bg-white/30 backdrop-blur-sm p-4 rounded-2xl flex flex-col sm:flex-row justify-between items-start sm:items-center border border-white/50 hover:bg-white/50 transition-colors opacity-80 hover:opacity-100 shadow-sm">
                                 <div className="mb-2 sm:mb-0 flex-grow">
                                     <p className="font-semibold text-text-primary">{plan.planName}</p>
                                     <p className="text-sm text-text-secondary">{plan.products.length} {plan.products.length > 1 ? 'Products' : 'Product'}</p>

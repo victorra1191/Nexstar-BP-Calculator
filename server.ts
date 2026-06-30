@@ -4,6 +4,13 @@ import { createServer as createViteServer } from "vite";
 import { Pool } from "pg";
 import cors from "cors";
 import crypto from "crypto";
+import { v2 as cloudinary } from 'cloudinary';
+
+cloudinary.config({ 
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME, 
+  api_key: process.env.CLOUDINARY_API_KEY, 
+  api_secret: process.env.CLOUDINARY_API_SECRET
+});
 
 const app = express();
 const PORT = 3000;
@@ -83,22 +90,23 @@ app.post("/api/user/:uid", async (req, res) => {
   }
 });
 
-// Upload File
+// Upload File to Cloudinary
 app.post("/api/files", async (req, res) => {
   try {
     const { uid, base64Data } = req.body;
     if (!uid || !base64Data) {
       return res.status(400).json({ error: "Missing uid or base64Data" });
     }
-    const fileId = crypto.randomBytes(16).toString("hex");
-    await pool.query(
-      "INSERT INTO files (id, user_id, data_base64) VALUES ($1, $2, $3)",
-      [fileId, uid, base64Data]
-    );
-    // Return a URL that the client can use to download the file
-    res.json({ url: `/api/files/download/${fileId}` });
+    
+    // Upload to Cloudinary
+    const result = await cloudinary.uploader.upload(base64Data, {
+      folder: 'Nexstar',
+    });
+    
+    // Return the secure URL directly
+    res.json({ url: result.secure_url });
   } catch (err) {
-    console.error("Error uploading file:", err);
+    console.error("Error uploading file to Cloudinary:", err);
     res.status(500).json({ error: "Internal Server Error" });
   }
 });

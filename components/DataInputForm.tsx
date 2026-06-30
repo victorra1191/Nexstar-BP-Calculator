@@ -186,19 +186,19 @@ const DataInputForm: React.FC<DataInputFormProps> = ({ onSave, onCancel, initial
     };
 
     return (
-        <form onSubmit={handleSubmit} className="bg-surface p-8 rounded-xl shadow-2xl border border-gray-200 animate-slide-in-up">
-            <h2 className="text-3xl font-bold text-text-primary mb-6 border-b border-gray-200 pb-4">{initialData?.id ? 'Edit Business Plan' : 'Create New Business Plan'}</h2>
+        <form onSubmit={handleSubmit} className="bg-white/40 backdrop-blur-xl p-6 sm:p-8 rounded-3xl shadow-2xl border border-white/50 animate-slide-in-up">
+            <h2 className="text-3xl font-bold text-text-primary mb-8 border-b border-white/30 pb-4">{initialData?.id ? 'Edit Business Plan' : 'Create New Business Plan'}</h2>
             <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
-                <div className="space-y-6 lg:col-span-3">
-                    <div className="p-4 border border-gray-200 rounded-lg">
-                        <h3 className="text-xl font-semibold text-primary mb-3">Container Details</h3>
-                        <div className="space-y-4">
+                <div className="space-y-8 lg:col-span-3">
+                    <div className="p-6 border border-white/60 rounded-3xl bg-white/30 backdrop-blur-md shadow-sm">
+                        <h3 className="text-2xl font-semibold text-primary mb-5">Container Details</h3>
+                        <div className="space-y-5">
                             <InputField label="Plan Name / ID" id="planName" value={formData.planName} onChange={handleContainerChange} />
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                                 <InputField label="Destination" id="destination" value={formData.destination} onChange={handleContainerChange} />
                                 <InputField label="Container Type" id="containerType" value={formData.containerType} onChange={handleContainerChange} />
                             </div>
-                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                                 <InputField label="Freight (Total)" id="freightTotal" type="number" step="0.01" value={formData.freightTotal} onChange={handleContainerChange} />
                                 <InputField label="Destination Costs (Total)" id="destinationCostsTotal" type="number" step="0.01" value={formData.destinationCostsTotal} onChange={handleContainerChange} />
                             </div>
@@ -206,42 +206,42 @@ const DataInputForm: React.FC<DataInputFormProps> = ({ onSave, onCancel, initial
                     </div>
                     
                     <div>
-                        <h3 className="text-xl font-semibold text-primary mb-3">Products</h3>
-                        <div className="space-y-4">
+                        <h3 className="text-2xl font-semibold text-primary mb-5 ml-2">Products</h3>
+                        <div className="space-y-6">
                             {formData.products.map((product, index) => (
-                                <div key={product.id} className="p-4 border border-gray-200 rounded-lg relative bg-background/50">
-                                    <h4 className="font-bold text-text-secondary mb-3">Product #{index + 1}</h4>
-                                     <button type="button" onClick={() => removeProduct(product.id)} className="absolute top-2 right-2 text-danger/60 hover:text-danger hover:bg-danger/10 p-1 rounded-full text-sm">
+                                <div key={product.id} className="p-6 border border-white/60 rounded-3xl relative bg-white/40 backdrop-blur-md shadow-sm transition-all hover:shadow-md">
+                                    <h4 className="font-bold text-text-primary text-lg mb-5 border-b border-white/40 pb-2">Product #{index + 1}</h4>
+                                     <button type="button" onClick={() => removeProduct(product.id)} className="absolute top-6 right-6 text-danger/70 hover:text-danger hover:bg-white/60 p-2 rounded-full transition-colors" aria-label="Remove Product">
                                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                                     </button>
-                                    <div className="space-y-4">
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div className="space-y-5">
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                                             <InputField label="Nexstar Model" id={`nexstarModel_${product.id}`} name="nexstarModel" value={product.nexstarModel} onChange={(e) => handleProductChange(product.id, e)} />
                                             <InputField label="Supplier Reference" id={`supplierReference_${product.id}`} name="supplierReference" value={product.supplierReference} onChange={(e) => handleProductChange(product.id, e)} />
                                         </div>
                                         <InputField label="Original Supplier" id={`originalSupplier_${product.id}`} name="originalSupplier" value={product.originalSupplier} onChange={(e) => handleProductChange(product.id, e)} />
-                                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-5">
                                             <InputField label="Qty" id={`qtyInContainer_${product.id}`} name="qtyInContainer" type="number" value={product.qtyInContainer} onChange={(e) => handleProductChange(product.id, e)} />
                                             <InputField label="CBM (m³)" id={`cbmPerUnit_${product.id}`} name="cbmPerUnit" type="number" step="0.001" value={product.cbmPerUnit} onChange={(e) => handleProductChange(product.id, e)} />
                                             <InputField label="FOB ($)" id={`fobCostUnit_${product.id}`} name="fobCostUnit" type="number" step="0.01" value={product.fobCostUnit} onChange={(e) => handleProductChange(product.id, e)} />
                                             <InputField label="Sales ($)" id={`estimatedSalesPrice_${product.id}`} name="estimatedSalesPrice" type="number" step="0.01" value={product.estimatedSalesPrice} onChange={(e) => handleProductChange(product.id, e)} />
                                         </div>
                                          <div>
-                                            <label className="block text-sm font-medium text-text-secondary">Product Image</label>
-                                            <div className="mt-1 flex items-center space-x-4">
-                                                <div className="w-24 h-24 rounded-md bg-secondary border border-gray-300 flex items-center justify-center">
-                                                    {(previewImageUrls[product.id] || product.productImage) ? <img src={previewImageUrls[product.id] || product.productImage} alt="Preview" className="w-full h-full object-cover rounded-md" /> : <span className="text-xs text-text-secondary">Preview</span>}
+                                            <label className="block text-sm font-medium text-text-secondary mb-2">Product Image</label>
+                                            <div className="mt-1 flex items-center space-x-5">
+                                                <div className="w-24 h-24 rounded-2xl bg-white/50 border border-white flex items-center justify-center overflow-hidden shadow-sm">
+                                                    {(previewImageUrls[product.id] || product.productImage) ? <img src={previewImageUrls[product.id] || product.productImage} alt="Preview" className="w-full h-full object-cover" /> : <span className="text-xs text-text-secondary font-medium">Preview</span>}
                                                 </div>
                                                 <input 
                                                     type="file" 
                                                     onChange={(e) => handleImageFileChange(product.id, e)} 
                                                     accept="image/*" 
-                                                    className="block w-full text-sm text-text-secondary file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20"
+                                                    className="block w-full text-sm text-text-secondary file:mr-4 file:py-2.5 file:px-5 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-white/60 file:text-primary hover:file:bg-white transition-colors file:shadow-sm"
                                                     disabled={uploadingImageId === product.id} // Disable input while uploading
                                                 />
                                             </div>
                                             {uploadingImageId === product.id && (
-                                                <p className="flex items-center text-sm text-primary mt-2">
+                                                <p className="flex items-center text-sm text-primary mt-3 font-medium">
                                                     <svg className="animate-spin h-4 w-4 mr-2 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                                                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                                                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
@@ -250,7 +250,7 @@ const DataInputForm: React.FC<DataInputFormProps> = ({ onSave, onCancel, initial
                                                 </p>
                                             )}
                                             {uploadErrors[product.id] && (
-                                                <p className="text-sm text-danger mt-2">
+                                                <p className="text-sm text-danger mt-3 bg-danger/10 p-2 rounded-lg">
                                                     Error: {uploadErrors[product.id]}
                                                 </p>
                                             )}
@@ -259,24 +259,24 @@ const DataInputForm: React.FC<DataInputFormProps> = ({ onSave, onCancel, initial
                                 </div>
                             ))}
                         </div>
-                         <button type="button" onClick={addProduct} className="mt-4 w-full bg-secondary text-primary font-bold py-2 px-6 rounded-lg hover:bg-gray-300 transition-colors flex items-center justify-center">
+                         <button type="button" onClick={addProduct} className="mt-6 w-full py-4 border-2 border-dashed border-white/60 rounded-3xl text-primary font-bold hover:bg-white/40 hover:border-white transition-all flex justify-center items-center backdrop-blur-sm shadow-sm hover:shadow-md">
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
                             Add Another Product
                         </button>
                     </div>
                 </div>
 
-                <div className="space-y-2 bg-background p-6 rounded-lg border border-gray-200 shadow-sm lg:col-span-2">
-                    <h3 className="text-xl font-semibold text-primary mb-4">Consolidated Results</h3>
+                <div className="space-y-4 bg-white/40 backdrop-blur-xl p-6 sm:p-8 rounded-3xl border border-white/50 shadow-xl lg:col-span-2 self-start sticky top-24">
+                    <h3 className="text-2xl font-bold text-primary mb-6 border-b border-white/30 pb-3">Consolidated Results</h3>
                     <CalculatedField label="Avg. Unit Cost" value={calculatedData.totalUnitCost} isCurrency />
                     <CalculatedField label="Avg. Unit Sales Margin" value={calculatedData.unitSalesMargin} isCurrency valueClass="text-accent font-semibold" />
                     <CalculatedField label="Gross Sales Margin" value={calculatedData.grossSalesMarginPercent} isPercent valueClass="text-accent font-semibold" />
                     <CalculatedField label="Gross Markup" value={calculatedData.grossMarkupPercent} isPercent valueClass="text-accent font-semibold" />
-                    <hr className="my-3 border-gray-200"/>
+                    <hr className="my-5 border-white/40"/>
                     <CalculatedField label="Total Investment" value={calculatedData.totalInvestment} isCurrency />
                     <CalculatedField label="Total Sales" value={calculatedData.totalSales} isCurrency />
                     <CalculatedField label="Total Profit" value={calculatedData.totalProfit} isCurrency valueClass="text-accent font-semibold" />
-                     <hr className="my-3 border-gray-200"/>
+                     <hr className="my-5 border-white/40"/>
                     <CalculatedField label="Interest (15%)" value={calculatedData.interest15Percent} isCurrency valueClass="text-danger font-semibold" />
                     <CalculatedField label="Net Profit" value={calculatedData.netProfit} isCurrency valueClass="text-accent font-bold text-lg" />
                     <CalculatedField label="Net Sales Margin" value={calculatedData.netSalesMarginPercent} isPercent valueClass="text-accent font-bold" />

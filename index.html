@@ -22,16 +22,16 @@
         theme: {
           extend: {
             colors: {
-              'primary': '#003366', // Deep Navy Blue
-              'primary-hover': '#002244',
-              'secondary': '#E9ECEF', // Light Gray
-              'accent': '#28a745', // Success Green
-              'accent-hover': '#218838',
-              'danger': '#dc3545', // Danger Red
-              'text-primary': '#212529', // Dark Charcoal
-              'text-secondary': '#6C757D', // Medium Gray
-              'background': '#F8F9FA', // Off-white
-              'surface': '#FFFFFF', // White
+              'primary': '#111827', // Dark Gray/Black for contrast
+              'primary-hover': '#374151',
+              'secondary': '#f3f4f6', 
+              'accent': '#10b981', // Emerald green
+              'accent-hover': '#059669',
+              'danger': '#ef4444', 
+              'text-primary': '#1f2937', 
+              'text-secondary': '#6b7280', 
+              'background': 'transparent', 
+              'surface': 'rgba(255, 255, 255, 0.75)', 
             },
             fontFamily: {
               sans: ['Inter', 'sans-serif'],
@@ -62,8 +62,21 @@
     <style>
       body {
         background-color: #F8F9FA;
-        color: #212529;
+        background-image: url('https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=2564&auto=format&fit=crop');
+        background-size: cover;
+        background-position: center;
+        background-attachment: fixed;
+        color: #1f2937;
         font-family: 'Inter', sans-serif;
+      }
+      body::before {
+        content: '';
+        position: fixed;
+        top: 0; left: 0; right: 0; bottom: 0;
+        background: rgba(255, 255, 255, 0.6);
+        backdrop-filter: blur(80px);
+        -webkit-backdrop-filter: blur(80px);
+        z-index: -1;
       }
     </style>
 <script type="importmap">
