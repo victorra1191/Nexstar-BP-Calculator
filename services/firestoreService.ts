@@ -121,6 +121,8 @@ export const onUserDataSnapshot = (uid: string, callback: (data: UserData | null
         callback(data);
       } catch (e) {
         console.error("Error polling user data", e);
+        // Call callback with null so the UI doesn't hang in a loading state
+        callback(null);
       }
       setTimeout(poll, 5000); // Poll every 5 seconds
     };

@@ -108,83 +108,87 @@ const App: React.FC = () => {
                 console.log(`[Auth] User logged in: ${currentUser.uid}`);
                 // User is logged in. Check for migration and subscribe to data.
                 
-                // MIGRATION CHECK:
-                console.log("[Migration] Checking for existing cloud data...");
-                const cloudData = await getUserDataOnce(currentUser.uid);
-                const localDataString = localStorage.getItem('nexstar_data');
-                
-                if (!cloudData && localDataString) {
-                    try {
-                        console.log("[Migration] Local data found, attempting migration to cloud...");
-                        const localData = JSON.parse(localDataString);
-                        
-
-                        // Handle logo migration (if present in local storage)
-                        let migratedLogoStoragePath: string | null = null;
-                        if (localData.logo && currentUser) {
-                            // If localData.logo is base64, upload it
-                            if (localData.logo.startsWith('data:image')) {
-                                console.log("[Migration] Uploading logo from local base64 to Storage.");
-                                const logoBlob = await (await fetch(localData.logo)).blob();
-                                migratedLogoStoragePath = `users/${currentUser.uid}/logos/user_logo_${new Date().getTime()}`;
-                                await uploadFileToStorage(currentUser.uid, logoBlob, migratedLogoStoragePath);
-                                console.log(`[Migration] Logo uploaded to: ${migratedLogoStoragePath}`);
-                            } else {
-                                migratedLogoStoragePath = localData.logo; // Assume it's already a Storage path/URL
-                                console.log(`[Migration] Logo path already in cloud format: ${migratedLogoStoragePath}`);
+                try {
+                    // MIGRATION CHECK:
+                    console.log("[Migration] Checking for existing cloud data...");
+                    const cloudData = await getUserDataOnce(currentUser.uid);
+                    const localDataString = localStorage.getItem('nexstar_data');
+                    
+                    if (!cloudData && localDataString) {
+                        try {
+                            console.log("[Migration] Local data found, attempting migration to cloud...");
+                            const localData = JSON.parse(localDataString);
+                            
+                            // Handle logo migration (if present in local storage)
+                            let migratedLogoStoragePath: string | null = null;
+                            if (localData.logo && currentUser) {
+                                // If localData.logo is base64, upload it
+                                if (localData.logo.startsWith('data:image')) {
+                                    console.log("[Migration] Uploading logo from local base64 to Storage.");
+                                    const logoBlob = await (await fetch(localData.logo)).blob();
+                                    migratedLogoStoragePath = `users/${currentUser.uid}/logos/user_logo_${new Date().getTime()}`;
+                                    await uploadFileToStorage(currentUser.uid, logoBlob, migratedLogoStoragePath);
+                                    console.log(`[Migration] Logo uploaded to: ${migratedLogoStoragePath}`);
+                                } else {
+                                    migratedLogoStoragePath = localData.logo; // Assume it's already a Storage path/URL
+                                    console.log(`[Migration] Logo path already in cloud format: ${migratedLogoStoragePath}`);
+                                }
                             }
-                        }
 
-                        // Adjust plans and product images if they are base64
-                        const migratePlans = async (plansToMigrate: BusinessPlanData[]) => {
-                            return Promise.all(plansToMigrate.map(async plan => {
-                                const productsWithMigratedImages = await Promise.all(plan.products.map(async product => {
-                                    if (product.productImage && product.productImage.startsWith('data:image')) {
-                                        console.log(`[Migration] Uploading product image from local base64 for product ${product.id} to Storage.`);
-                                        const imageBlob = await (await fetch(product.productImage)).blob();
-                                        const storagePath = `users/${currentUser.uid}/product_images/${product.id}_${new Date().getTime()}`;
-                                        const imageUrl = await uploadFileToStorage(currentUser.uid, imageBlob, storagePath);
-                                        console.log(`[Migration] Product image uploaded to: ${storagePath}`);
-                                        return { ...product, productImage: imageUrl };
-                                    }
-                                    return product;
+                            // Adjust plans and product images if they are base64
+                            const migratePlans = async (plansToMigrate: BusinessPlanData[]) => {
+                                return Promise.all(plansToMigrate.map(async plan => {
+                                    const productsWithMigratedImages = await Promise.all(plan.products.map(async product => {
+                                        if (product.productImage && product.productImage.startsWith('data:image')) {
+                                            console.log(`[Migration] Uploading product image from local base64 for product ${product.id} to Storage.`);
+                                            const imageBlob = await (await fetch(product.productImage)).blob();
+                                            const storagePath = `users/${currentUser.uid}/product_images/${product.id}_${new Date().getTime()}`;
+                                            const imageUrl = await uploadFileToStorage(currentUser.uid, imageBlob, storagePath);
+                                            console.log(`[Migration] Product image uploaded to: ${storagePath}`);
+                                            return { ...product, productImage: imageUrl };
+                                        }
+                                        return product;
+                                    }));
+                                    return { ...plan, products: productsWithMigratedImages };
                                 }));
-                                return { ...plan, products: productsWithMigratedImages };
+                            };
+
+                            const migratedPlans = await migratePlans(localData.plans || []);
+                            const migratedArchivedPlans = await migratePlans(localData.archivedPlans || []);
+
+                            // Adjust exportHistory to remove pdfDataUrl before saving to cloud
+                            const migratedExportHistory = await Promise.all((localData.exportHistory || []).map(async (item: any) => {
+                                if (item.pdfDataUrl && item.pdfDataUrl.startsWith('data:application/pdf')) {
+                                    console.log(`[Migration] Uploading PDF for history item ${item.id} to Storage.`);
+                                    const pdfBlob = await (await fetch(item.pdfDataUrl)).blob();
+                                    const storagePath = `users/${currentUser.uid}/pdf_exports/${item.id}_${new Date().getTime()}.pdf`;
+                                    await uploadFileToStorage(currentUser.uid, pdfBlob, storagePath);
+                                    console.log(`[Migration] PDF uploaded to: ${storagePath}`);
+                                    const { pdfDataUrl, ...rest } = item;
+                                    return { ...rest, pdfStoragePath: storagePath };
+                                }
+                                const { pdfDataUrl, ...rest } = item; // Ensure pdfDataUrl is NOT stored directly in Firestore document
+                                return rest;
                             }));
-                        };
 
-                        const migratedPlans = await migratePlans(localData.plans || []);
-                        const migratedArchivedPlans = await migratePlans(localData.archivedPlans || []);
-
-                        // Adjust exportHistory to remove pdfDataUrl before saving to cloud
-                        const migratedExportHistory = await Promise.all((localData.exportHistory || []).map(async (item: any) => {
-                            if (item.pdfDataUrl && item.pdfDataUrl.startsWith('data:application/pdf')) {
-                                console.log(`[Migration] Uploading PDF for history item ${item.id} to Storage.`);
-                                const pdfBlob = await (await fetch(item.pdfDataUrl)).blob();
-                                const storagePath = `users/${currentUser.uid}/pdf_exports/${item.id}_${new Date().getTime()}.pdf`;
-                                await uploadFileToStorage(currentUser.uid, pdfBlob, storagePath);
-                                console.log(`[Migration] PDF uploaded to: ${storagePath}`);
-                                const { pdfDataUrl, ...rest } = item;
-                                return { ...rest, pdfStoragePath: storagePath };
-                            }
-                            const { pdfDataUrl, ...rest } = item; // Ensure pdfDataUrl is NOT stored directly in Firestore document
-                            return rest;
-                        }));
-
-                        console.log("[Migration] Saving migrated data to Firestore...");
-                        await saveUserData(currentUser.uid, {
-                            plans: migratedPlans,
-                            archivedPlans: migratedArchivedPlans,
-                            logoStoragePath: migratedLogoStoragePath, // Store path from Storage
-                            poCounter: localData.poCounter || 1,
-                            exportHistory: migratedExportHistory
-                        });
-                        localStorage.removeItem('nexstar_data'); // Clear local data after successful migration
-                        console.log("[Migration] Local data migration complete and cleared.");
-                    } catch (e: any) {
-                        console.error("[Migration Error] Failed to migrate local data to cloud:", e);
-                        setSyncError(`Failed to migrate local data to cloud: ${e.message || 'Unknown error'}`);
+                            console.log("[Migration] Saving migrated data to Firestore...");
+                            await saveUserData(currentUser.uid, {
+                                plans: migratedPlans,
+                                archivedPlans: migratedArchivedPlans,
+                                logoStoragePath: migratedLogoStoragePath, // Store path from Storage
+                                poCounter: localData.poCounter || 1,
+                                exportHistory: migratedExportHistory
+                            });
+                            localStorage.removeItem('nexstar_data'); // Clear local data after successful migration
+                            console.log("[Migration] Local data migration complete and cleared.");
+                        } catch (e: any) {
+                            console.error("[Migration Error] Failed to migrate local data to cloud:", e);
+                            setSyncError(`Failed to migrate local data to cloud: ${e.message || 'Unknown error'}`);
+                        }
                     }
+                } catch (err: any) {
+                    console.error("[Data Sync Error] Failed to fetch initial cloud data", err);
+                    setSyncError(`Failed to connect to database: ${err.message || 'Unknown error'}`);
                 }
 
                 // SUBSCRIBE TO FIRESTORE
@@ -283,9 +287,11 @@ const App: React.FC = () => {
                         setPoCounter(1);
                         setExportHistory([]);
                     }
+                    
+                    // Stop loading after first data fetch succeeds or fails cleanly
+                    setAuthLoading(false);
                 });
                 
-                setAuthLoading(false);
                 return () => {
                     unsubscribeFirestore();
                     console.log("[Firestore] Unsubscribed from user data snapshot.");
