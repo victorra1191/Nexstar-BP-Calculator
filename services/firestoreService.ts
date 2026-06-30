@@ -1,3 +1,13 @@
+import { 
+    GoogleAuthProvider, 
+    setPersistence, 
+    browserLocalPersistence, 
+    signInWithPopup, 
+    signOut as firebaseSignOut, 
+    onAuthStateChanged,
+    User as FirebaseUser
+} from 'firebase/auth';
+import { auth } from './firebaseConfig';
 import type { BusinessPlanData, ExportHistoryItem } from '../types';
 
 export interface UserData {
@@ -9,12 +19,9 @@ export interface UserData {
 }
 
 const API_BASE = '/api';
-const CURRENT_USER_ID = 'default_user_1'; // Simple mock user for single-user system
 
 // Type alias to match Firebase User for App.tsx compatibility
-export interface User {
-  uid: string;
-}
+export type User = FirebaseUser;
 
 export const uploadFileToStorage = async (uid: string, fileData: File | Blob, storagePath: string): Promise<string> => {
     // Convert Blob/File to base64
@@ -37,12 +44,36 @@ export const uploadFileToStorage = async (uid: string, fileData: File | Blob, st
 };
 
 export const getDownloadURLFromStoragePath = async (storagePath: string): Promise<string> => {
-    // Our new backend returns the base64 string directly from the download URL
-    // So we fetch it and return the data URI
-    const res = await fetch(storagePath);
-    if (!res.ok) throw new Error('Failed to download file');
-    const data = await res.json();
-    return data.data; // The base64 string
+    if (!storagePath) return '';
+    
+    // If it's a full URL, return it
+    if (storagePath.startsWith('http://') || storagePath.startsWith('https://')) {
+        return storagePath;
+    }
+
+    // If it's not an API path (e.g. old Firebase path like 'users/...'), it's lost in the migration
+    if (!storagePath.startsWith('/api/')) {
+        console.warn(`[Storage] Old Firebase path detected and cannot be downloaded: ${storagePath}`);
+        return '';
+    }
+
+    try {
+        const res = await fetch(storagePath);
+        if (!res.ok) throw new Error('Failed to download file');
+        
+        // Ensure we are receiving JSON and not the SPA fallback
+        const contentType = res.headers.get("content-type");
+        if (contentType && contentType.indexOf("application/json") !== -1) {
+            const data = await res.json();
+            return data.data; // The base64 string
+        } else {
+            console.error('[Storage] Received non-JSON response (likely SPA fallback)');
+            return '';
+        }
+    } catch (e) {
+        console.error('[Storage] Failed to fetch storage path:', e);
+        return '';
+    }
 };
 
 export const deleteFileFromStorage = async (storagePath: string): Promise<void> => {
@@ -66,8 +97,15 @@ export const saveUserData = async (uid: string, data: Partial<UserData>): Promis
 export const getUserDataOnce = async (uid: string): Promise<UserData | null> => {
     const res = await fetch(`${API_BASE}/user/${uid}`);
     if (!res.ok) throw new Error('Failed to fetch user data');
-    const data = await res.json();
-    return data;
+    const text = await res.text();
+    if (!text) return null;
+    try {
+        const data = JSON.parse(text);
+        return data;
+    } catch (e) {
+        console.error("Failed to parse user data", e);
+        return null;
+    }
 };
 
 // We poll the backend for changes instead of using WebSockets for simplicity,
@@ -95,17 +133,23 @@ export const onUserDataSnapshot = (uid: string, callback: (data: UserData | null
 };
 
 export const subscribeToAuthChanges = (callback: (user: User | null) => void): (() => void) => {
-    // Immediately log the user in as our default user
-    setTimeout(() => {
-        callback({ uid: CURRENT_USER_ID });
-    }, 100);
-    return () => {};
+    return onAuthStateChanged(auth, callback);
 };
 
 export const signInWithGoogle = async (): Promise<void> => {
-    // No-op, already authenticated as default user
+    const provider = new GoogleAuthProvider();
+    console.log("[Auth] Attempting Google Sign-in via popup.");
+    try {
+        await setPersistence(auth, browserLocalPersistence);
+        await signInWithPopup(auth, provider);
+        console.log("[Auth] Google Sign-in popup successful.");
+    } catch (error) {
+        console.error("[Auth Error] Error signing in with Google:", error);
+        throw error;
+    }
 };
 
-export const signOut = async (): Promise<void> => {
-    // No-op
+export const signOut = (): Promise<void> => {
+    console.log("[Auth] User signing out.");
+    return firebaseSignOut(auth);
 };
