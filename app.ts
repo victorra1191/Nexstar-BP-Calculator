@@ -135,4 +135,97 @@ app.delete("/api/files/download/:fileId", async (req, res) => {
   }
 });
 
+// Gemini API Endpoints
+import { GoogleGenAI, HarmCategory, HarmBlockThreshold } from "@google/genai";
+const apiKey = process.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
+const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
+
+app.post("/api/gemini/summary", async (req, res) => {
+  if (!ai) {
+    return res.status(500).json({ error: "Gemini API Key is not configured on the server." });
+  }
+  const { data } = req.body;
+  if (!data) return res.status(400).json({ error: "Missing data" });
+
+  const productList = data.products?.map((p: any) => `- ${p.nexstarModel} (${p.qtyInContainer} units)`).join('\n') || '';
+  const prompt = `
+      Generate a concise, professional executive summary for a business plan for a consolidated container based on the following data. The plan is named "${data.planName}".
+      Assume the role of a financial analyst presenting to potential investors. Go beyond the surface-level data to provide a brief analysis of what these numbers signify (e.g., strong profitability from a diversified product mix, efficient cost management, high-return potential).
+      The summary should be optimistic but grounded in the provided data. It should be one paragraph.
+      The tone should be confident, analytical, and persuasive.
+
+      Key Aggregated Data:
+      - Total Investment (for one container): $${data.totalInvestment?.toFixed(2) || '0.00'}
+      - Projected Total Sales (for one container): $${data.totalSales?.toFixed(2) || '0.00'}
+      - Projected Net Profit (for one container): $${data.netProfit?.toFixed(2) || '0.00'}
+      - Net Sales Margin: ${data.netSalesMarginPercent?.toFixed(2) || '0.00'}%
+      - Gross Markup: ${data.grossMarkupPercent?.toFixed(2) || '0.00'}%
+      - Destination Market: ${data.destination || 'N/A'}
+
+      Products in Container:
+      ${productList}
+
+      Weave the key data into a compelling narrative about this consolidated shipment as a business opportunity. Do not just list the numbers.
+  `;
+
+  try {
+      const response = await ai.models.generateContent({
+          model: 'gemini-2.5-flash',
+          contents: prompt,
+          config: {
+              safetySettings: [
+                  { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
+                  { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
+                  { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
+                  { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
+              ]
+          }
+      });
+      res.json({ summary: response.text });
+  } catch (error: any) {
+      console.error("[Gemini Error] Error generating summary:", error);
+      res.status(500).json({ error: error.message || String(error) });
+  }
+});
+
+app.post("/api/gemini/translate", async (req, res) => {
+  if (!ai) {
+    return res.status(500).json({ error: "Gemini API Key is not configured on the server." });
+  }
+  const { textToTranslate } = req.body;
+  if (!textToTranslate) return res.status(400).json({ error: "Missing textToTranslate" });
+
+  const prompt = `
+      Translate the following English executive summary into Simplified Chinese (简体中文).
+      Maintain a professional, formal, and financial tone suitable for a business plan.
+      Ensure the translation is accurate and fluent.
+
+      English Text:
+      ---
+      ${textToTranslate}
+      ---
+      
+      Chinese Translation:
+  `;
+
+  try {
+      const response = await ai.models.generateContent({
+          model: 'gemini-2.5-flash',
+          contents: prompt,
+          config: {
+              safetySettings: [
+                  { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
+                  { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
+                  { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
+                  { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
+              ]
+          }
+      });
+      res.json({ translatedText: response.text });
+  } catch (error: any) {
+      console.error("[Gemini Error] Error translating text:", error);
+      res.status(500).json({ error: error.message || String(error) });
+  }
+});
+
 export default app;

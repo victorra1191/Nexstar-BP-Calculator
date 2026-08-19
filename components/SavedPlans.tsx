@@ -55,7 +55,7 @@ const SavedPlans: React.FC<SavedPlansProps> = ({ plans, archivedPlans, history, 
         <div className="bg-surface backdrop-blur-xl p-6 sm:p-8 rounded-3xl shadow-2xl border border-white/50 animate-fade-in">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 border-b border-gray-200/50 pb-4">
                 <div>
-                    <h2 className="text-3xl font-bold text-text-primary mb-1">Business Plans</h2>
+                    <h2 className="text-3xl font-bold text-text-primary mb-1">Planes de Negocio (BP)</h2>
                     {lastUpdatedDate && (
                          <p className="text-xs text-text-secondary font-mono">Last Updated: {lastUpdatedDate.toLocaleString()}</p>
                     )}

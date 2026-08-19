@@ -1,4 +1,4 @@
-const CACHE_NAME = 'nexstar-planner-v3';
+const CACHE_NAME = 'nexstar-planner-v5';
 const urlsToCache = [
   '/',
   '/index.html',
@@ -21,6 +21,17 @@ self.addEventListener('install', event => {
 });
 
 self.addEventListener('fetch', event => {
+  // --- FIX: Explicitly fetch API requests from the network ---
+  if (event.request.url.includes('/api/')) {
+    event.respondWith(
+      fetch(event.request).catch(error => {
+        console.error('SW API Fetch Error:', error);
+        throw error;
+      })
+    );
+    return;
+  }
+
   // Use a Network falling back to Cache strategy for navigation requests.
   // This ensures the user always gets the latest version of the app shell.
   if (event.request.mode === 'navigate') {

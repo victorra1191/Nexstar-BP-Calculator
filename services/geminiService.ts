@@ -1,61 +1,27 @@
-import { GoogleGenAI, HarmCategory, HarmBlockThreshold } from "@google/genai";
 import type { BusinessPlanData } from '../types';
 
-// Access the API key specifically for Gemini from Vite environment variables (Vercel)
-// This `process.env.VITE_GEMINI_API_KEY` will be defined in vite.config.ts
-const apiKey = process.env.VITE_GEMINI_API_KEY;
-
-// Initialize conditionally to prevent crash if key is somehow missing
-const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
-
 export const generateBusinessPlanSummary = async (data: BusinessPlanData): Promise<string> => {
-    if (!ai || !apiKey) {
-        console.error("[Gemini Error] API Key is missing for summary generation.");
-        return "Failed: Gemini API Key is missing. Please configure VITE_GEMINI_API_KEY in Vercel Environment Variables and Redeploy.";
-    }
-
-    const productList = data.products.map(p => `- ${p.nexstarModel} (${p.qtyInContainer} units)`).join('\n');
-
-    const prompt = `
-        Generate a concise, professional executive summary for a business plan for a consolidated container based on the following data. The plan is named "${data.planName}".
-        Assume the role of a financial analyst presenting to potential investors. Go beyond the surface-level data to provide a brief analysis of what these numbers signify (e.g., strong profitability from a diversified product mix, efficient cost management, high-return potential).
-        The summary should be optimistic but grounded in the provided data. It should be one paragraph.
-        The tone should be confident, analytical, and persuasive.
-
-        Key Aggregated Data:
-        - Total Investment (for one container): $${data.totalInvestment.toFixed(2)}
-        - Projected Total Sales (for one container): $${data.totalSales.toFixed(2)}
-        - Projected Net Profit (for one container): $${data.netProfit.toFixed(2)}
-        - Net Sales Margin: ${data.netSalesMarginPercent.toFixed(2)}%
-        - Gross Markup: ${data.grossMarkupPercent.toFixed(2)}%
-        - Destination Market: ${data.destination}
-
-        Products in Container:
-        ${productList}
-
-        Weave the key data into a compelling narrative about this consolidated shipment as a business opportunity. Do not just list the numbers.
-    `;
-
-    console.log("[Gemini] Sending summary prompt:", prompt);
+    console.log("[Gemini] Requesting summary generation from server");
 
     try {
-        const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
-            contents: prompt,
-            config: {
-                safetySettings: [
-                    { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
-                    { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
-                    { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
-                    { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
-                ]
-            }
+        const response = await fetch('/api/gemini/summary', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ data })
         });
-        const summaryText = response.text;
-        console.log("[Gemini] Summary response received:", summaryText);
-        return summaryText || "No summary generated.";
+        
+        const result = await response.json();
+        
+        if (!response.ok) {
+            throw new Error(result.error || 'Unknown error');
+        }
+
+        console.log("[Gemini] Summary response received from server");
+        return result.summary || "No summary generated.";
     } catch (error: any) {
-        console.error("[Gemini Error] Error generating summary:", error);
+        console.error("[Gemini Error] Error requesting summary:", error);
         
         const errorMsg = error.message || String(error);
 
@@ -65,7 +31,6 @@ export const generateBusinessPlanSummary = async (data: BusinessPlanData): Promi
         }
         
         if (errorMsg.includes('PERMISSION_DENIED') || errorMsg.includes('403')) {
-            // Updated message to be more specific to Gemini API key
             if (errorMsg.includes('leaked')) {
                 return "Failed: Your Gemini API Key was reported as leaked. Please generate a new key and update VITE_GEMINI_API_KEY in Vercel. (Changes take 5 mins)";
             }
@@ -85,44 +50,27 @@ export const generateBusinessPlanSummary = async (data: BusinessPlanData): Promi
 };
 
 export const translateTextToChinese = async (textToTranslate: string): Promise<string> => {
-    if (!ai || !apiKey) {
-        console.error("[Gemini Error] API Key is missing for translation.");
-        return "Translation failed: Gemini API Key is missing.";
-    }
-
-    const prompt = `
-        Translate the following English executive summary into Simplified Chinese (简体中文).
-        Maintain a professional, formal, and financial tone suitable for a business plan.
-        Ensure the translation is accurate and fluent.
-
-        English Text:
-        ---
-        ${textToTranslate}
-        ---
-        
-        Chinese Translation:
-    `;
-
-    console.log("[Gemini] Sending translation prompt for text:", textToTranslate.substring(0, 100) + "...");
+    console.log("[Gemini] Requesting translation from server for text:", textToTranslate.substring(0, 100) + "...");
 
     try {
-        const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
-            contents: prompt,
-            config: {
-                safetySettings: [
-                    { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
-                    { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
-                    { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
-                    { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
-                ]
-            }
+        const response = await fetch('/api/gemini/translate', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ textToTranslate })
         });
-        const translatedText = response.text;
-        console.log("[Gemini] Translation response received:", translatedText);
-        return translatedText || "Translation failed.";
+
+        const result = await response.json();
+
+        if (!response.ok) {
+            throw new Error(result.error || 'Unknown error');
+        }
+
+        console.log("[Gemini] Translation response received from server");
+        return result.translatedText || "Translation failed.";
     } catch (error: any) {
-        console.error("[Gemini Error] Error translating text:", error);
+        console.error("[Gemini Error] Error requesting translation:", error);
         const errorMsg = error.message || String(error);
         
         if (errorMsg.includes('API_KEY_SERVICE_BLOCKED') || errorMsg.includes('PERMISSION_DENIED')) {

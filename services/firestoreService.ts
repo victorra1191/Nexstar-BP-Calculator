@@ -95,16 +95,24 @@ export const saveUserData = async (uid: string, data: Partial<UserData>): Promis
 };
 
 export const getUserDataOnce = async (uid: string): Promise<UserData | null> => {
-    const res = await fetch(`${API_BASE}/user/${uid}`);
-    if (!res.ok) throw new Error('Failed to fetch user data');
-    const text = await res.text();
-    if (!text) return null;
     try {
-        const data = JSON.parse(text);
-        return data;
+        const res = await fetch(`${API_BASE}/user/${uid}`);
+        if (!res.ok) {
+            console.error(`[getUserDataOnce] Server returned status: ${res.status}`);
+            throw new Error('Failed to fetch user data');
+        }
+        const text = await res.text();
+        if (!text) return null;
+        try {
+            const data = JSON.parse(text);
+            return data;
+        } catch (e) {
+            console.error("[getUserDataOnce] Failed to parse user data", e);
+            return null;
+        }
     } catch (e) {
-        console.error("Failed to parse user data", e);
-        return null;
+        console.error("[getUserDataOnce] Network or Fetch Error:", e);
+        throw e;
     }
 };
 

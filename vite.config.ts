@@ -8,11 +8,10 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [react()],
     define: {
-      // Injects separate API Keys for Firebase and Gemini.
+      // Injects separate API Keys for Firebase.
       // These will map to environment variables set in Vercel.
       // No fallback to hardcoded keys here; if env vars aren't set, it will be undefined in the app.
-      'process.env.VITE_FIREBASE_API_KEY': JSON.stringify(env.VITE_FIREBASE_API_KEY),
-      'process.env.VITE_GEMINI_API_KEY': JSON.stringify(env.VITE_GEMINI_API_KEY)
+      'process.env.VITE_FIREBASE_API_KEY': JSON.stringify(env.VITE_FIREBASE_API_KEY)
     },
     build: {
       chunkSizeWarningLimit: 1600
